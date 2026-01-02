@@ -2,7 +2,7 @@
 
 基于 [inspect-ai](https://github.com/UKGovernmentBEIS/inspect_ai) 框架的模型评测工具，用于评测 Kimi 模型在各类 benchmark 上的表现。
 
-## 支持的评测任务
+## 目前支持的评测任务
 
 | 任务 | 描述 | 数据集 |
 |------|------|--------|
@@ -94,9 +94,9 @@ uv run inspect view
 ## 项目结构
 
 ```
-├── aime2025.py          # AIME 2025 评测任务定义
-├── mmmu_pro_vision.py   # MMMU Pro Vision 评测任务定义
-├── ocr_bench.py         # OCRBench 评测任务定义
+├── aime2025.py          # AIME 2025 评测任务
+├── mmmu_pro_vision.py   # MMMU Pro Vision 评测任务
+├── ocr_bench.py         # OCRBench 评测任务
 ├── eval.py              # 主评测入口
 ├── logs/                # 评测日志目录
 └── pyproject.toml       # 项目依赖配置

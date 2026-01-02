@@ -1,0 +1,13 @@
+[project]
+name = "kimi-vendor-verifier"
+version = "0.1.0"
+description = "Kimi Vendor Verifier"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "inspect-ai>=0.3.158",
+    "inspect-evals>=0.3.103",
+    "loguru>=0.7.3",
+    "math-verify>=0.8.0",
+    "openai>=2.14.0",
+]

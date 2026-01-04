@@ -1,6 +1,5 @@
 import ast
 import base64
-import json
 import random
 import re
 import string
@@ -24,7 +23,8 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState, generate
 
-MMMU_PRO_V_DATASET = "moonshotai/mmmu-pro-vision"
+MMMU_PRO_V_DATASET = "MMMU/MMMU_Pro"
+MMMU_PRO_V_SUBSET = "vision"
 
 MMMU_PRO_V_PROMPT = (
     "Write out the multiple-choice question in the image and then solve it. "
@@ -48,107 +48,63 @@ def _image_to_base64(img) -> Optional[str]:
     return None
 
 
-def _parse_images(row: dict) -> list[str]:
-    images = []
-
-    if "image" in row and row["image"] is not None:
-        image_data = row["image"]
-        if isinstance(image_data, list):
-            raw_images = image_data
-        elif isinstance(image_data, str):
-            try:
-                raw_images = ast.literal_eval(image_data)
-            except Exception:
-                try:
-                    raw_images = json.loads(image_data)
-                except Exception:
-                    raw_images = [image_data]
-        else:
-            raw_images = [image_data]
-
-        if not isinstance(raw_images, list):
-            raw_images = [raw_images]
-
-        for img in raw_images:
-            img_base64 = _image_to_base64(img)
-            if img_base64:
-                images.append(img_base64)
-
-    if not images:
-        for i in range(1, 8):
-            img_key = f"image_{i}"
-            if img_key in row and row[img_key] is not None:
-                img_base64 = _image_to_base64(row[img_key])
-                if img_base64:
-                    images.append(img_base64)
-
-    return images
+def _parse_image(row: dict) -> str:
+    img = row["image"]
+    if img is None:
+        raise ValueError("image field is None")
+    img_base64 = _image_to_base64(img)
+    if not img_base64:
+        raise ValueError("Failed to convert image to base64")
+    return img_base64
 
 
 def _parse_choices(row: dict) -> tuple[list[str], dict[str, str]]:
+    options_str = row["options"]
+    options_list = ast.literal_eval(options_str)
+
     all_choices = []
     index2ans = {}
-
-    options_str = row.get("options", "")
-    if options_str:
-        try:
-            options_list = ast.literal_eval(options_str)
-            for i, opt in enumerate(options_list):
-                letter = string.ascii_uppercase[i]
-                all_choices.append(letter)
-                index2ans[letter] = str(opt)
-        except Exception:
-            pass
-
-    if not all_choices:
-        for key in string.ascii_uppercase:
-            if key in row and row[key] is not None:
-                all_choices.append(key)
-                index2ans[key] = str(row[key])
+    for i, opt in enumerate(options_list):
+        letter = string.ascii_uppercase[i]
+        all_choices.append(letter)
+        index2ans[letter] = str(opt)
 
     return all_choices, index2ans
 
 
-def _row_to_sample(row: dict, idx: int) -> Optional[Sample]:
-    try:
-        images = _parse_images(row)
-        all_choices, index2ans = _parse_choices(row)
-        answer = str(row.get("answer", "")).strip().upper()
+def _row_to_sample(row: dict, idx: int) -> Sample:
+    image_base64 = _parse_image(row)
+    all_choices, index2ans = _parse_choices(row)
+    answer = row["answer"].strip().upper()
 
-        content = [ContentImage(image=f"data:image/jpeg;base64,{img}") for img in images]
-        content.append(ContentText(text=MMMU_PRO_V_PROMPT))
+    content = [
+        ContentImage(image=f"data:image/jpeg;base64,{image_base64}"),
+        ContentText(text=MMMU_PRO_V_PROMPT),
+    ]
 
-        return Sample(
-            id=str(row.get("id", row.get("index", idx))),
-            input=[ChatMessageUser(content=content)],
-            target=answer,
-            metadata={
-                "all_choices": all_choices,
-                "index2ans": index2ans,
-                "category": row.get("category", ""),
-                "subject": row.get("subject", ""),
-            },
-        )
-    except Exception as e:
-        print(f"[Row parse error] {e}")
-        return None
+    return Sample(
+        id=str(row.get("id", idx)),
+        input=[ChatMessageUser(content=content)],
+        target=answer,
+        metadata={
+            "all_choices": all_choices,
+            "index2ans": index2ans,
+            "subject": row.get("subject", ""),
+        },
+    )
 
 
 def load_mmmu_pro_dataset(
     dataset_name: str = MMMU_PRO_V_DATASET,
+    subset: str = MMMU_PRO_V_SUBSET,
     limit: Optional[int] = None,
 ) -> MemoryDataset:
-    ds = load_dataset(dataset_name, split="test")
+    ds = load_dataset(dataset_name, subset, split="test")
 
     if limit:
         ds = ds.select(range(min(limit, len(ds))))
 
-    samples = []
-    for idx, row in enumerate(ds):
-        sample = _row_to_sample(row, idx)
-        if sample is not None:
-            samples.append(sample)
-
+    samples = [_row_to_sample(row, idx) for idx, row in enumerate(ds)]
     return MemoryDataset(samples=samples, name="MMMU_Pro_Vision")
 
 
@@ -252,10 +208,11 @@ def mmmu_pro_scorer() -> Scorer:
 @task
 def mmmu_pro_v(
     dataset_name: str = MMMU_PRO_V_DATASET,
+    subset: str = MMMU_PRO_V_SUBSET,
     limit: Optional[int] = None,
 ) -> Task:
     return Task(
-        dataset=load_mmmu_pro_dataset(dataset_name, limit),
+        dataset=load_mmmu_pro_dataset(dataset_name, subset, limit),
         solver=[generate()],
         scorer=mmmu_pro_scorer(),
     )

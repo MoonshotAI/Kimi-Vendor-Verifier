@@ -7,7 +7,7 @@
 | 任务 | 描述 | 数据集 |
 |------|------|--------|
 | **AIME 2025** | 美国数学邀请赛，评估数学推理能力 | [math-ai/aime25](https://huggingface.co/datasets/math-ai/aime25) |
-| **MMMU Pro Vision** | 多模态理解评测（纯视觉） | [moonshotai/mmmu-pro-vision](https://huggingface.co/datasets/moonshotai/mmmu-pro-vision) (私有) |
+| **MMMU Pro Vision** | 多模态理解评测（纯视觉） | [MMMU/MMMU_Pro](https://huggingface.co/datasets/MMMU/MMMU_Pro) (vision subset) |
 | **OCRBench** | OCR 文字识别能力评测 | [echo840/OCRBench](https://huggingface.co/datasets/echo840/OCRBench) |
 
 ## 环境准备
@@ -49,20 +49,6 @@ export KIMI_API_KEY="your-api-key"
 export KIMI_BASE_URL="your-base-url"
 ```
 
-### 3. Hugging Face 登录（MMMU Pro Vision 评测必需）
-
-MMMU Pro Vision 使用私有数据集，运行评测前需要先登录 Hugging Face：
-
-```bash
-# 安装 huggingface-cli（如果尚未安装）
-pip install huggingface_hub
-
-# 登录 Hugging Face
-huggingface-cli login
-```
-
-登录时需要提供有权限访问 `moonshotai/mmmu-pro-vision` 数据集的 Hugging Face Token。
-
 ## 运行评测
 
 > 💡 **调试建议**：部署调试期间建议先使用 **OCRBench** 进行 debug，该数据集较小、运行速度快，适合快速验证部署是否正常。调试完成后再运行 MMMU Pro Vision 和 AIME 2025 正式评测。
@@ -82,8 +68,6 @@ uv run python eval.py
 - `epochs=32` - 采样次数
 
 ### MMMU Pro Vision 评测
-
-> ⚠️ **注意**：运行此评测前请确保已完成 [Hugging Face 登录](#3-hugging-face-登录mmmu-pro-vision-评测必需)
 
 修改 `eval.py` 中的配置后运行：
 

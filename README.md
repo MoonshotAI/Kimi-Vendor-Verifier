@@ -104,7 +104,7 @@ uv run python eval.py
 评测日志保存在 `logs/` 目录下，可使用 `inspect view` 查看：
 
 ```bash
-uv run python inspect view
+uv run inspect view
 ```
 
 ## 项目结构

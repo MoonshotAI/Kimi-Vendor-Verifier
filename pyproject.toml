@@ -11,3 +11,9 @@ dependencies = [
     "math-verify>=0.8.0",
     "openai>=2.14.0",
 ]
+
+[tool.setuptools]
+py-modules = ["kimi_model", "aime2025", "mmmu_pro_vision", "ocr_bench", "eval", "load_aime_questions"]
+
+[project.entry-points.inspect_ai]
+kimi_vendor_verifier = "kimi_model"

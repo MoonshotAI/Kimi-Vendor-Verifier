@@ -38,8 +38,16 @@ BENCH_CONFIGS = {
 
 
 def get_thinking_extra_body(thinking: bool, mode: str) -> dict:
-    """Build extra_body for thinking mode based on backend type."""
-    if mode == "vllm":
+    """Build extra_body for thinking mode based on backend type.
+
+    Args:
+        thinking: Enable thinking mode
+        mode: Backend type - "kimi", "vllm", or "none" (no thinking param)
+    """
+    if mode == "none":
+        # Non-hybrid model, no thinking param needed
+        return {}
+    elif mode == "vllm":
         if thinking:
             return {"chat_template_kwargs": {"thinking": True}}
         else:
@@ -102,11 +110,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run AIME 2025 with thinking mode
+  # Run AIME 2025 with thinking mode (hybrid model)
   uv run python eval.py aime2025 --thinking --model kimi/your-model-id
 
   # Run OCRBench with streaming
   uv run python eval.py ocrbench --model kimi/your-model-id --stream
+
+  # Run with non-hybrid model (no thinking param)
+  uv run python eval.py aime2025 --model kimi/your-model-id --think-mode none
 
   # Run all benchmarks with streaming
   uv run python eval.py all --model kimi/your-model-id --stream
@@ -126,9 +137,9 @@ Examples:
     )
     parser.add_argument(
         "--think-mode",
-        choices=["kimi", "vllm"],
+        choices=["kimi", "vllm", "none"],
         default="kimi",
-        help="Thinking config format: kimi or vllm (default: kimi)",
+        help="Thinking config format: kimi, vllm, or none (default: kimi). Use 'none' for non-hybrid models",
     )
     parser.add_argument(
         "--model",

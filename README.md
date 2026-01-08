@@ -50,26 +50,34 @@ uv run python eval.py all --model kimi/<model-id>
 | `benchmark` | 评测任务: `aime2025`, `mmmu`, `ocrbench`, `all` | `all` |
 | `--model` | 模型标识，如 `kimi/your-model-id` | **必填** |
 | `--thinking` | 启用思考模式 | 关闭 |
-| `--think-mode` | 思考模式格式: `kimi` 或 `vllm` | `kimi` |
+| `--think-mode` | 思考模式格式: `kimi`, `vllm`, 或 `none` | `kimi` |
 | `--stream` | 启用流式传输（推荐，避免长推理超时） | 关闭 |
 | `--retry` | 错误重试次数 | `0` |
 | `--max-connections` | 最大并发连接数 | 按 benchmark 配置 |
 | `--epochs` | 采样次数（仅 AIME） | 按 benchmark 配置 |
 | `--client-timeout` | HTTP 超时时间（秒） | `86400` |
 
+> **`--think-mode` 说明**：
+> - `kimi`: 混合模型，使用 `{"thinking": {"type": "enabled/disabled"}}`
+> - `vllm`: vLLM/SGLang 部署，使用 `{"chat_template_kwargs": {"thinking": true/false}}`
+> - `none`: 非混合模型，不传递 thinking 参数
+
 ### 示例
 
 ```bash
-# AIME 2025 评测（思考模式 + 流式）
+# AIME 2025 评测（混合模型 + 思考模式 + 流式）
 uv run python eval.py aime2025 --model kimi/your-model-id --thinking --stream
 
 # OCRBench 评测（快速验证部署）
-uv run python eval.py ocrbench --model kimi/your-model-id
+uv run python eval.py ocrbench --model kimi/your-model-id --stream
 
 # MMMU Pro Vision 评测
 uv run python eval.py mmmu --model kimi/your-model-id --thinking
 
-# 使用 vLLM 部署的模型
+# 非混合模型（不传递 thinking 参数）
+uv run python eval.py aime2025 --model kimi/your-model-id --think-mode none --stream
+
+# vLLM/SGLang 部署的模型
 uv run python eval.py aime2025 --model kimi/your-model-id --thinking --think-mode vllm
 ```
 

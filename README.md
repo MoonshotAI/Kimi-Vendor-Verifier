@@ -36,11 +36,13 @@ export KIMI_BASE_URL="your-base-url"
 ### 基本用法
 
 ```bash
-# 运行单个 benchmark
-uv run python eval.py <benchmark> --model kimi/<model-id> [options]
+# 运行单个 benchmark（必填参数：--model, --temperature, --max-tokens）
+uv run python eval.py <benchmark> --model kimi/<model-id> \
+    --temperature <temp> --max-tokens <tokens> [options]
 
-# 运行所有 benchmark
-uv run python eval.py all --model kimi/<model-id>
+# 示例：运行 AIME 2025
+uv run python eval.py aime2025 --model kimi/your-model-id \
+    --temperature 0.6 --max-tokens 32768 --stream
 ```
 
 ### 可用参数
@@ -49,36 +51,43 @@ uv run python eval.py all --model kimi/<model-id>
 |------|------|--------|
 | `benchmark` | 评测任务: `aime2025`, `mmmu`, `ocrbench`, `all` | `all` |
 | `--model` | 模型标识，如 `kimi/your-model-id` | **必填** |
-| `--thinking` | 启用思考模式 | 关闭 |
-| `--think-mode` | 思考模式格式: `kimi`, `vllm`, 或 `none` | `kimi` |
+| `--temperature` | 采样温度（思考 1.0，非思考 0.6） | **必填** |
+| `--max-tokens` | 最大输出 token 数（见下方推荐配置表） | **必填** |
+| `--thinking` | 开启思考模式（需配合 `--think-mode kimi/vllm`） | 关闭 |
+| `--think-mode` | 思考参数格式：`none`（非混合模型）、`kimi`、`vllm` | `none` |
 | `--stream` | 启用流式传输（推荐，避免长推理超时） | 关闭 |
-| `--retry` | 错误重试次数 | `0` |
-| `--max-connections` | 最大并发连接数 | 按 benchmark 配置 |
-| `--epochs` | 采样次数（仅 AIME） | 按 benchmark 配置 |
+| `--max-connections` | 最大并发连接数 | 按 benchmark |
+| `--epochs` | 采样次数 | 按 benchmark |
 | `--client-timeout` | HTTP 超时时间（秒） | `86400` |
 
-> **`--think-mode` 说明**：
-> - `kimi`: 混合模型，使用 `{"thinking": {"type": "enabled/disabled"}}`
-> - `vllm`: vLLM/SGLang 部署，使用 `{"chat_template_kwargs": {"thinking": true/false}}`
-> - `none`: 非混合模型，不传递 thinking 参数
+> **思考模式参数说明**：
+>
+> | 模型类型 | 参数组合 | 发送的 extra_body |
+> |---------|---------|------------------|
+> | 非混合模型 | 不传 `--think-mode` | `{}` |
+> | 混合模型 + 思考关闭 | `--think-mode kimi` | `{"thinking": {"type": "disabled"}}` |
+> | 混合模型 + 思考开启 | `--thinking --think-mode kimi` | `{"thinking": {"type": "enabled"}}` |
+> | vLLM 部署 + 思考关闭 | `--think-mode vllm` | `{"chat_template_kwargs": {"thinking": false}}` |
+> | vLLM 部署 + 思考开启 | `--thinking --think-mode vllm` | `{"chat_template_kwargs": {"thinking": true}}` |
 
 ### 示例
 
 ```bash
-# AIME 2025 评测（混合模型 + 思考模式 + 流式）
-uv run python eval.py aime2025 --model kimi/your-model-id --thinking --stream
+# 非混合模型（不传 --think-mode）
+uv run python eval.py aime2025 --model kimi/your-model-id \
+    --temperature 0.6 --max-tokens 32768 --stream
 
-# OCRBench 评测（快速验证部署）
-uv run python eval.py ocrbench --model kimi/your-model-id --stream
+# 混合模型 + 思考开启 (Kimi API)
+uv run python eval.py aime2025 --model kimi/your-model-id \
+    --thinking --think-mode kimi --temperature 1.0 --max-tokens 98304 --stream
 
-# MMMU Pro Vision 评测
-uv run python eval.py mmmu --model kimi/your-model-id --thinking
+# 混合模型 + 思考关闭 (Kimi API)
+uv run python eval.py aime2025 --model kimi/your-model-id \
+    --think-mode kimi --temperature 0.6 --max-tokens 32768 --stream
 
-# 非混合模型（不传递 thinking 参数）
-uv run python eval.py aime2025 --model kimi/your-model-id --think-mode none --stream
-
-# vLLM/SGLang 部署的模型
-uv run python eval.py aime2025 --model kimi/your-model-id --thinking --think-mode vllm
+# 混合模型 + 思考开启 (vLLM/SGLang)
+uv run python eval.py aime2025 --model kimi/your-model-id \
+    --thinking --think-mode vllm --temperature 1.0 --max-tokens 98304 --stream
 ```
 
 ## 查看结果
@@ -108,15 +117,15 @@ uv run inspect eval-retry logs/<log-file>.eval
 └── pyproject.toml       # 项目配置
 ```
 
-## 默认配置
+## 推荐配置
 
 | Benchmark | Temperature | Max Tokens | Epochs |
 |-----------|-------------|------------|--------|
-| OCRBench | 0.6 / 1.0 | 8K / 16K | 1 |
-| MMMU | 0.6 / 1.0 | 32K / 64K | 1 |
-| AIME 2025 | 0.6 / 1.0 | 32K / 96K | 32 |
+| OCRBench | 0.6 / 1.0 | 8192 / 16384 | 1 |
+| MMMU | 0.6 / 1.0 | 32768 / 65536 | 1 |
+| AIME 2025 | 0.6 / 1.0 | 32768 / 98304 | 32 |
 
-> 左侧为非思考模式，右侧为思考模式配置
+> 格式：非思考模式 / 思考模式
 
 ## 评测指标
 
@@ -150,37 +159,28 @@ AIME 评测的输出 tokens 较多，需要注意：
 
 ```bash
 # Step 1: 快速验证（30 samples x 1 epoch）
-uv run python eval.py aime2025 --model kimi/your-model-id --thinking --stream --epochs 1
+uv run python eval.py aime2025 --model kimi/your-model-id \
+    --thinking --think-mode kimi --temperature 1.0 --max-tokens 98304 --stream --epochs 1
 
 # Step 2: 完整评测（30 samples x 32 epochs）
-uv run python eval.py aime2025 --model kimi/your-model-id --thinking --stream
+uv run python eval.py aime2025 --model kimi/your-model-id \
+    --thinking --think-mode kimi --temperature 1.0 --max-tokens 98304 --stream
 ```
 
 ### 自动重试机制
 
-以下情况会自动重试（无限重试直到成功）：
+以下网络类错误会**自动重试**（指数退避，1-60 秒），无需手动配置：
 
 | 错误类型 | 说明 |
 |----------|------|
-| `RateLimitError` / `429` | 服务端限流，等待后重试 |
-| `APIConnectionError` | 连接建立失败 |
-| `ReadError` / `RemoteProtocolError` | 网络读取错误（仅在未开始接收数据时重试） |
+| `RateLimitError` / `429` | 服务端限流 |
+| `APIConnectionError` | 连接失败 |
+| `ReadError` / `RemoteProtocolError` | 网络读取错误 |
 
-**不会重试的情况**：
-- 流传输已开始接收数据后中断（避免重复请求导致结果不一致）
-- 其他非网络类错误（如参数错误、认证失败等）
+> 非网络类错误（如模型输出格式问题）不会重试，会直接记录到日志供后续分析。
 
 ### 流传输中断处理
 
 当流传输中断时（如 `RemoteProtocolError`）：
-- **已开始接收数据**: 返回已收到的部分内容，**不重试**（服务端已处理，重试会导致重复计算）
 - **未开始接收数据**: **自动重试**（连接失败，安全重试）
-
-### 常见错误
-
-| 错误 | 原因 | 解决方案 |
-|------|------|----------|
-| `RateLimitError: 429` | 并发过高触发限流 | 降低 `--max-connections` |
-| `RemoteProtocolError` | 服务端异常断开连接 | 降低并发，检查服务端日志 |
-| `Request timed out` | 客户端超时 | 增加 `--client-timeout` |
-| `finish_reason: length` | 输出超过 max_tokens | 增加 max_tokens 配置 |
+- **已开始接收数据**: 返回已收到的部分内容，**不重试**（服务端已处理，重试会导致重复计算）

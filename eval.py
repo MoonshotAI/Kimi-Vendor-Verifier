@@ -14,26 +14,11 @@ BENCHMARKS = {
     "aime2025": aime2025,
 }
 
-# Default configs per benchmark: (no-thinking, thinking)
+# Default configs per benchmark (max_connections, epochs)
 BENCH_CONFIGS = {
-    "ocrbench": {
-        "temperature": (0.6, 1.0),
-        "max_tokens": (8192, 16384),
-        "max_connections": 100,
-        "epochs": 1,
-    },
-    "mmmu": {
-        "temperature": (0.6, 1.0),
-        "max_tokens": (32 * 1024, 64 * 1024),
-        "max_connections": 100,
-        "epochs": 1,
-    },
-    "aime2025": {
-        "temperature": (0.6, 1.0),
-        "max_tokens": (32 * 1024, 96 * 1024),
-        "max_connections": 100,
-        "epochs": 32,
-    },
+    "ocrbench": {"max_connections": 100, "epochs": 1},
+    "mmmu": {"max_connections": 100, "epochs": 1},
+    "aime2025": {"max_connections": 100, "epochs": 32},
 }
 
 
@@ -51,7 +36,7 @@ def get_thinking_extra_body(thinking: bool, mode: str) -> dict:
         if thinking:
             return {"chat_template_kwargs": {"thinking": True}}
         else:
-            return {"chat_template_kwargs": {"thinking": False, "enable_thinking": False}}
+            return {"chat_template_kwargs": {"thinking": False}}
     else:  # kimi
         return {"thinking": {"type": "enabled" if thinking else "disabled"}}
 
@@ -59,9 +44,10 @@ def get_thinking_extra_body(thinking: bool, mode: str) -> dict:
 def run_eval(
     bench_name: str,
     model: str,
+    temperature: float,
+    max_tokens: int,
     thinking: bool,
     think_mode: str,
-    retry: int,
     client_timeout: int,
     stream: bool = False,
     **overrides,
@@ -70,9 +56,6 @@ def run_eval(
     task = BENCHMARKS[bench_name]
     config = BENCH_CONFIGS[bench_name]
 
-    idx = 1 if thinking else 0
-    temperature = config["temperature"][idx]
-    max_tokens = config["max_tokens"][idx]
     max_connections = overrides.get("max_connections", config["max_connections"])
     epochs = overrides.get("epochs", config["epochs"])
 
@@ -93,7 +76,7 @@ def run_eval(
         max_connections=max_connections,
         epochs=epochs,
         extra_body=extra_body,
-        retry_on_error=retry,
+        retry_on_error=0,
         continue_on_error=True,
         fail_on_error=False,
         model_args={
@@ -110,17 +93,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run AIME 2025 with thinking mode (hybrid model)
-  uv run python eval.py aime2025 --thinking --model kimi/your-model-id
+  # Non-hybrid model (no --think-mode)
+  uv run python eval.py aime2025 --model kimi/your-model-id \\
+      --temperature 0.6 --max-tokens 32768 --stream
 
-  # Run OCRBench with streaming
-  uv run python eval.py ocrbench --model kimi/your-model-id --stream
+  # Hybrid model with thinking enabled (Kimi API)
+  uv run python eval.py aime2025 --model kimi/your-model-id \\
+      --thinking --think-mode kimi --temperature 1.0 --max-tokens 98304 --stream
 
-  # Run with non-hybrid model (no thinking param)
-  uv run python eval.py aime2025 --model kimi/your-model-id --think-mode none
-
-  # Run all benchmarks with streaming
-  uv run python eval.py all --model kimi/your-model-id --stream
+  # Hybrid model with thinking disabled (Kimi API)
+  uv run python eval.py aime2025 --model kimi/your-model-id \\
+      --think-mode kimi --temperature 0.6 --max-tokens 32768 --stream
         """,
     )
     parser.add_argument(
@@ -131,20 +114,32 @@ Examples:
         help="Benchmark to run (default: all)",
     )
     parser.add_argument(
-        "--thinking",
-        action="store_true",
-        help="Enable thinking mode",
-    )
-    parser.add_argument(
-        "--think-mode",
-        choices=["kimi", "vllm", "none"],
-        default="kimi",
-        help="Thinking config format: kimi, vllm, or none (default: kimi). Use 'none' for non-hybrid models",
-    )
-    parser.add_argument(
         "--model",
         required=True,
         help="Model identifier (e.g., kimi/your-model-id)",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        required=True,
+        help="Sampling temperature (recommended: 1.0 for thinking, 0.6 for non-thinking)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        required=True,
+        help="Max output tokens (see README for recommended values per benchmark)",
+    )
+    parser.add_argument(
+        "--thinking",
+        action="store_true",
+        help="Enable thinking mode (requires --think-mode for hybrid models)",
+    )
+    parser.add_argument(
+        "--think-mode",
+        choices=["none", "kimi", "vllm"],
+        default="none",
+        help="Thinking param format: none (non-hybrid), kimi, or vllm (default: none)",
     )
     parser.add_argument(
         "--max-connections",
@@ -155,12 +150,6 @@ Examples:
         "--epochs",
         type=int,
         help="Number of sampling epochs",
-    )
-    parser.add_argument(
-        "--retry",
-        type=int,
-        default=0,
-        help="Retry count on error (default: 0)",
     )
     parser.add_argument(
         "--client-timeout",
@@ -177,9 +166,9 @@ Examples:
     args = parser.parse_args()
 
     overrides = {}
-    if args.max_connections:
+    if args.max_connections is not None:
         overrides["max_connections"] = args.max_connections
-    if args.epochs:
+    if args.epochs is not None:
         overrides["epochs"] = args.epochs
 
     benchmarks = BENCHMARKS.keys() if args.bench == "all" else [args.bench]
@@ -187,9 +176,10 @@ Examples:
         run_eval(
             bench_name,
             args.model,
+            args.temperature,
+            args.max_tokens,
             args.thinking,
             args.think_mode,
-            args.retry,
             args.client_timeout,
             args.stream,
             **overrides,

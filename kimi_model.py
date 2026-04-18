@@ -22,10 +22,12 @@ from typing_extensions import override
 
 from inspect_ai.log import transcript
 from inspect_ai.model import GenerateConfig, modelapi
+from inspect_ai.model._openai import OpenAIAsyncHttpxClient
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 
 # Unlimited read timeout for thinking mode (model may think for a long time)
 STREAM_TIMEOUT = httpx.Timeout(timeout=None, connect=60.0)
+STREAM_LIMITS = httpx.Limits(max_connections=None, max_keepalive_connections=100)
 
 RETRYABLE_READ_ERRORS = (
     HttpcoreReadError,
@@ -33,6 +35,21 @@ RETRYABLE_READ_ERRORS = (
     httpx.ReadError,
     httpx.RemoteProtocolError,
 )
+
+
+def _default_http_client() -> httpx.AsyncClient:
+    """Use inspect_ai/OpenAI client defaults without a hidden pool cap.
+
+    inspect_ai already enforces `max_connections` with its own semaphore, so the
+    underlying HTTP client should not impose a lower default limit than the user
+    requested. We keep OpenAI's proxy/follow-redirect behavior while using an
+    unlimited active connection pool and a conservative keepalive pool.
+    """
+
+    return OpenAIAsyncHttpxClient(
+        timeout=STREAM_TIMEOUT,
+        limits=STREAM_LIMITS,
+    )
 
 
 def _get_file_logger() -> logging.Logger:
@@ -117,10 +134,7 @@ class KimiAPI(OpenAICompatibleAPI):
         **model_args,
     ) -> None:
         if "http_client" not in model_args:
-            model_args["http_client"] = httpx.AsyncClient(
-                timeout=STREAM_TIMEOUT,
-                # http2=True,
-            )
+            model_args["http_client"] = _default_http_client()
 
         super().__init__(
             model_name=model_name,

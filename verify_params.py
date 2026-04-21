@@ -204,6 +204,7 @@ Examples:
         default=os.environ.get("KIMI_API_KEY"),
         help="API key (default: $KIMI_API_KEY)",
     )
+
     parser.add_argument("--thinking", action="store_true", help="Verify thinking mode")
     parser.add_argument(
         "--think-mode",

@@ -3,7 +3,7 @@
 [English](README.md) | 中文
 
 ## K3 评测结果
-榜单按照提交测试的时间顺序排列
+按照提交测试的时间顺序排列
 
 model: kimi-k3
 
@@ -11,14 +11,14 @@ thinking effort: max
 
 | Provider | OCRBench | MMMU Pro Vision | BEAM (1M) | DeepSWE |
 |----------|----------|-----------------|-----------|---------|
-| Moonshot | 0.89 | 0.82 | 0.31 | 0.67 |
+| Moonshot | 0.89 | 0.82 | 0.31 | 0.675 |
 | Fireworks  | 0.89 | 0.82 | 0.3037 | 0.664 |
-| Baseten | 0.889 | 0.804 | 0.2448 | 0.574 |
-| Together | 0.892 | 0.817 | TBD | 0.54 |
-| DigitialOcean | 0.89 | 0.816 | TBD | TBD |
+| Baseten | 0.889 | 0.804 | 0.2975 | TBD |
+| Together | 0.892 | 0.817 | TBD | TBD |
+| DigitalOcean | 0.89 | 0.816 | TBD | TBD |
 | Inferact | 0.893 | TBD | TBD | TBD |
-| Nebius | TBD | TBD | TBD | TBD |
-| Modal | TBD | TBD | TBD | TBD |
+| Nebius | 0.878 | 0.814 | TBD | TBD |
+| Modal | 0.887 | 0.817 | 0.322 | TBD |
 
 
 

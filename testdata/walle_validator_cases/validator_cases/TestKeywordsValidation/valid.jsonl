@@ -1,0 +1,2 @@
+{"anyOf":[{"type":"boolean"},{"type":"boolean"}]}
+{"anyOf":[{"type":"null"},{"type":"null"}]}

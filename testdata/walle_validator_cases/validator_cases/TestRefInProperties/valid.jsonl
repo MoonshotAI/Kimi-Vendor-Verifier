@@ -1,0 +1,1 @@
+{"$defs":{"Address":{"properties":{"city":{"type":"string"},"street":{"type":"string"}},"type":"object"},"ParentObject":{"properties":{"id":{"type":"string"}},"type":"object"},"Tag":{"type":"string"}},"properties":{"address":{"$ref":"#/$defs/Address"},"parent":{"$ref":"#/$defs/ParentObject"},"tags":{"items":{"$ref":"#/$defs/Tag"},"type":"array"}},"type":"object"}

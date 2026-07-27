@@ -1,0 +1,26 @@
+{}
+{"type":["string","null","integer","boolean","array","object","number"]}
+{"type":"string"}
+{"default":"hello","description":"A string","maxLength":100,"minLength":1,"pattern":"^[a-z]+$","type":"string"}
+{"default":1.5,"description":"A number","enum":[1,2.5,-3.7],"maximum":10,"minimum":-10,"type":"number"}
+{"default":1,"description":"An integer","enum":[1,2,3],"maximum":10,"minimum":-10,"type":"integer"}
+{"default":true,"description":"A boolean","type":"boolean"}
+{"default":null,"description":"A null value","type":"null"}
+{"default":[],"description":"An array","items":{"type":"string"},"maxItems":10,"minItems":0,"type":"array"}
+{"additionalProperties":false,"default":{"age":30,"name":"John"},"description":"An object","properties":{"age":{"type":"integer"},"name":{"type":"string"}},"required":["name"],"type":"object"}
+{"properties":{"type":{"type":"string"}},"type":"object"}
+{"properties":{"user":{"properties":{"address":{"properties":{"city":{"type":"string"},"street":{"type":"string"}},"type":"object"},"name":{"type":"string"}},"type":"object"}},"type":"object"}
+{"items":{"items":{"default":"hello","type":"string"},"type":"array"},"type":"array"}
+{"properties":{"metadata":{"properties":{"created":{"default":"2021-01-01","type":"string"},"modified":{"default":"2021-01-01","type":"string"}},"type":"object"},"tags":{"items":{"type":"string"},"type":"array"}},"type":"object"}
+{"properties":{"a.b.c":{"type":"string"},"d.e.f":{"anyOf":[{"type":"string"},{"properties":{"g.f":{"type":"string"}},"type":"object"}]}},"type":"object"}
+{"properties":{"a/b/c":{"type":"string"},"d/e/f":{"anyOf":[{"type":"string"},{"properties":{"g/f":{"type":"string"}},"type":"object"}]}},"type":"object"}
+{"$defs":{"User":{"properties":{"name":{"type":"string"}},"type":"object"}},"properties":{"a/b/c":{"type":"string"},"d/e/f":{"anyOf":[{"type":"string"},{"properties":{"g/f":{"type":"string"}},"type":"object"}]}},"type":"object"}
+{"properties":{"enum":{"type":"string"}},"type":"object"}
+{"properties":{"items":{"type":"string"}},"type":"object"}
+{"properties":{"defs":{"type":"string"}},"type":"object"}
+{"properties":{"type":{"type":"string"}},"type":"object"}
+{"description":"A string type","title":"String Type","type":"string"}
+{"enum":[""," ","\n","\t","special\\chars"],"type":"string"}
+{"enum":[0,1,-1,3.14,2.71828],"type":"number"}
+{"enum":[true,false],"type":"boolean"}
+{"enum":["value",null],"type":["string","null"]}

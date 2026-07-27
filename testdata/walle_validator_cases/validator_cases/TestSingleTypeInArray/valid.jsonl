@@ -1,0 +1,11 @@
+{"properties":{"age":{"type":"integer"},"name":{"type":"string"}},"required":["name"],"type":["object"]}
+{"items":{"type":"string"},"maxItems":10,"minItems":0,"type":["array"]}
+{"maxLength":100,"minLength":1,"type":["string"]}
+{"maximum":10,"minimum":-10,"type":["number"]}
+{"maximum":10,"minimum":-10,"type":["integer"]}
+{"type":["boolean"]}
+{"type":["null"]}
+{"properties":{"user":{"properties":{"address":{"properties":{"city":{"type":["string"]},"street":{"type":["string"]}},"type":["object"]},"name":{"type":["string"]}},"type":["object"]}},"type":["object"]}
+{"items":{"items":{"enum":["a","b"],"minLength":1,"type":["string"]},"type":["array"]},"type":["array"]}
+{"properties":{"metadata":{"properties":{"created":{"type":["string"]},"modified":{"type":["string"]}},"type":["object"]},"tags":{"items":{"type":["string"]},"type":["array"]}},"type":["object"]}
+{"$defs":{"TypeAsList":{"properties":{"name":{"type":["string"]}},"type":["object"]}},"properties":{"data":{"anyOf":[{"type":["string"]},{"type":["integer"]},{"properties":{"value":{"type":["string"]}},"type":["object"]}]},"reference":{"$ref":"#/$defs/TypeAsList"}},"type":["object"]}

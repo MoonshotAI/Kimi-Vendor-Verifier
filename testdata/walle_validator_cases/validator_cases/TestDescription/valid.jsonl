@@ -1,0 +1,4 @@
+{"description":"This is a valid description","type":"string"}
+{"description":"","type":"string"}
+{"description":"Special chars: !@#$%^\u0026*()_+-=[]{}|;':\",./\u003c\u003e?","type":"string"}
+{"description":"Line 1\nLine 2\nLine 3","type":"string"}

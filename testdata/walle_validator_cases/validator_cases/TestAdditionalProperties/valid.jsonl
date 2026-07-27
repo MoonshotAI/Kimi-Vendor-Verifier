@@ -1,0 +1,5 @@
+{"additionalProperties":true,"type":"object"}
+{"additionalProperties":false,"type":"object"}
+{"additionalProperties":{"type":"string"},"type":"object"}
+{"additionalProperties":{"properties":{"name":{"type":"string"}},"type":"object"},"type":"object"}
+{"additionalProperties":false,"properties":{"name":{"type":"string"}},"type":"object"}

@@ -9,9 +9,23 @@ dependencies = [
     "httpx[http2]>=0.28.1",
     "inspect-ai>=0.3.158",
     "inspect-evals>=0.3.103",
+    "jsonschema>=4.25.1",
     "loguru>=0.7.3",
     "math-verify>=0.8.0",
     "openai>=2.14.0",
+    "pillow>=12.1.0",
+    "pytest>=8.0",
+    "pytest-rerunfailures>=14.0",
+    "pytest-xdist>=3.5",
+    "transformers>=5.14.1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+markers = [
+    "smoke_test: quick smoke tests",
+    "flaky: tests that may be retried on failure",
 ]
 
 [tool.setuptools]

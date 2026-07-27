@@ -1,0 +1,2 @@
+{"anyOf":[{"type":"string"},{"type":"number"}]}
+{"items":{"type":"string"},"type":"array"}

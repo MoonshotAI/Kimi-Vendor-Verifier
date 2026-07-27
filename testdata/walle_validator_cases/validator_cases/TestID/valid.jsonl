@@ -1,0 +1,6 @@
+{"$id":"http://example.com/schema.json","type":"object"}
+{"$id":"my-schema","type":"string"}
+{"$id":"#user","type":"object"}
+{"$id":"","type":"object"}
+{"$id":"https://example.com/schemas/user#/definitions/name","type":"object"}
+{"$id":"https://example.com/schemas/user#/$defs/name","type":"object"}

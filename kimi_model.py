@@ -21,7 +21,8 @@ from tenacity import wait_exponential_jitter
 from typing_extensions import override
 
 from inspect_ai.log import transcript
-from inspect_ai.model import GenerateConfig, modelapi
+from inspect_ai.model import ChatMessage, GenerateConfig, modelapi
+from inspect_ai.model._openai import messages_to_openai as _messages_to_openai
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 
 # Unlimited read timeout for thinking mode (model may think for a long time)
@@ -114,8 +115,12 @@ class KimiAPI(OpenAICompatibleAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         stream: bool = False,
+        certain_provider: str | None = None,
         **model_args,
     ) -> None:
+        if certain_provider:
+            model_args.setdefault("default_headers", {})
+            model_args["default_headers"] = {"X-Msh-Internal-Certain-Provider": certain_provider}
         if "http_client" not in model_args:
             model_args["http_client"] = httpx.AsyncClient(
                 timeout=STREAM_TIMEOUT,
@@ -133,6 +138,54 @@ class KimiAPI(OpenAICompatibleAPI):
         )
 
     @override
+    def emulate_reasoning_history(self) -> bool:
+        """Kimi API supports native reasoning_content, no emulation needed."""
+        return False
+
+    @override
+    async def messages_to_openai(
+        self, input: list[ChatMessage]
+    ) -> list[dict[str, Any]]:
+        """Convert messages to OpenAI format with Kimi reasoning_content support."""
+        from inspect_ai.model._openai import openai_chat_message
+
+        def reasoning_handler(reasoning):
+            return {"reasoning_content": reasoning.reasoning}
+
+        return [
+            await openai_chat_message(msg, reasoning_handler=reasoning_handler)
+            for msg in input
+        ]
+
+    @override
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[Any],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        """Generate and attach original_finish_reason metadata for scorer.
+           For keeping self-defined finish_reason.
+        """
+        result = await super().generate(input, tools, tool_choice, config)
+
+        def attach_metadata(output: Any) -> Any:
+            if output is None or isinstance(output, Exception):
+                return output
+            original = getattr(self, "_last_original_finish_reason", None)
+            if original:
+                if output.metadata is None:
+                    output.metadata = {}
+                output.metadata["original_finish_reason"] = original
+            return output
+
+        if isinstance(result, tuple):
+            output, model_call = result
+            return attach_metadata(output), model_call
+        return attach_metadata(result)
+
+    @override
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
@@ -140,9 +193,42 @@ class KimiAPI(OpenAICompatibleAPI):
             request["stream"] = True
             request["stream_options"] = {"include_usage": True}
             return await self._stream_completion(request)
-        return cast(
+        completion = cast(
             ChatCompletion, await self.client.chat.completions.create(**request)
         )
+        return self._normalize_finish_reason(completion)
+
+    def _normalize_finish_reason(self, completion: ChatCompletion) -> ChatCompletion:
+        """Normalize non-standard finish_reason and record the original value."""
+        if not completion.choices:
+            return completion
+
+        valid_finish_reasons = {
+            "stop",
+            "length",
+            "tool_calls",
+            "content_filter",
+            "function_call",
+        }
+        choice = completion.choices[0]
+        original = choice.finish_reason
+        if original and original not in valid_finish_reasons:
+            tool_calls = bool(choice.message.tool_calls)
+            normalized = "tool_calls" if tool_calls else "stop"
+            _log_event(
+                "finish_reason_normalized",
+                original,
+                f"mapped to {normalized}",
+                False,
+                self.model_name,
+            )
+            # Record original for scorer inspection.
+            self._last_original_finish_reason = original
+            object.__setattr__(choice, "finish_reason", normalized)
+        else:
+            self._last_original_finish_reason = None
+
+        return completion
 
     async def _stream_completion(self, request: dict[str, Any]) -> ChatCompletion:
         """Accumulate stream chunks into ChatCompletion."""
@@ -238,6 +324,24 @@ class KimiAPI(OpenAICompatibleAPI):
         if finish_reason == "length":
             _log_event("length_exceeded", "max_tokens", f"id={completion_id}, usage={usage}", False, self.model_name)
 
+        # Normalize non-standard finish_reason values (e.g. "unexpected_state")
+        # so inspect-ai's Choice model does not raise a validation error.
+        valid_finish_reasons = {"stop", "length", "tool_calls", "content_filter", "function_call"}
+        original_finish_reason = finish_reason
+        if finish_reason and finish_reason not in valid_finish_reasons:
+            normalized = "tool_calls" if tool_calls else "stop"
+            _log_event(
+                "finish_reason_normalized",
+                finish_reason,
+                f"mapped to {normalized}",
+                False,
+                self.model_name,
+            )
+            finish_reason = normalized
+            self._last_original_finish_reason = original_finish_reason
+        else:
+            self._last_original_finish_reason = None
+
         return ChatCompletion(
             id=completion_id or "stream",
             model=model,
@@ -276,4 +380,9 @@ class KimiAPI(OpenAICompatibleAPI):
 
 @modelapi(name="kimi")
 def kimi() -> type[KimiAPI]:
+    return KimiAPI
+
+
+@modelapi(name="opensource")
+def opensource() -> type[KimiAPI]:
     return KimiAPI

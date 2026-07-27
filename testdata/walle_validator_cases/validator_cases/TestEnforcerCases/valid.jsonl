@@ -1,0 +1,97 @@
+{"type":"object"}
+{}
+{"additionalProperties":false,"properties":{"\\nxxx\\n\\t\\r\\/\\\\\\b\\f":{"type":"string"},"\\uFACD":{"type":"string"},"鬒":{"type":"string"}},"required":["\\uFACD","鬒","\\nxxx\\n\\t\\r\\/\\\\\\b\\f"],"type":"object"}
+{"additionalProperties":false,"properties":{"\\nxxx\\n\\t\\r\\/\\\\\\b\\f":{"type":"string"},"\\uFACD":{"type":"string"},"鬒":{"type":"string"}},"required":["\\uFACD","鬒","\\nxxx\\n\\t\\r\\/\\\\\\b\\f"],"type":"object"}
+{"additionalProperties":false,"properties":{"extra key":{"type":"string"},"first name":{"type":"string"},"last_name":{"type":"string"},"num_seasons_in_nba":{"type":"integer"},"year_of_birth":{"type":"integer"},"year_of_nba":{"type":"integer"}},"required":["first name","last_name","year_of_birth","year_of_nba","num_seasons_in_nba"],"type":"object"}
+{"additionalProperties":false,"properties":{"extra key":{"type":"string"},"first name":{"type":"string"},"last_name":{"type":"string"},"num_seasons_in_nba":{"type":"integer"},"year_of_birth":{"type":"integer"},"year_of_nba":{"type":"integer"}},"required":["first name","last_name","year_of_birth","year_of_nba","num_seasons_in_nba"],"type":"object"}
+{"properties":{"AAA":{"type":"string"},"BBB":{"type":"string"}},"required":["AAA","BBB"],"type":"object"}
+{"properties":{"AAA":{"type":"string"},"BBB":{"type":"string"}},"required":["AAA","BBB"],"type":"object"}
+{"additionalProperties":false,"properties":{"AAA":{"type":"string"},"BBB":{"type":"string"},"x":{"type":"string"}},"required":["AAA","BBB","x"],"type":"object"}
+{"additionalProperties":false,"properties":{"AAA":{"type":"string"},"BBB":{"type":"string"},"x":{"type":"string"}},"required":["AAA","BBB","x"],"type":"object"}
+{"additionalProperties":false,"properties":{"AAA":{"type":"string"},"BBB":{"type":"string"},"x":{"type":"string"}},"required":["AAA","BBB"],"type":"object"}
+{"additionalProperties":false,"properties":{"AAA":{"type":"string"},"BBB":{"type":"string"},"x":{"type":"string"}},"required":["AAA","BBB"],"type":"object"}
+{"additionalProperties":false,"properties":{"first name":{"type":"string"},"last_name":{"type":"string"},"num_seasons_in_nba":{"type":"integer"},"year_of_birth":{"type":"integer"}},"type":"object"}
+{"additionalProperties":false,"properties":{"first name":{"type":"string"},"last_name":{"type":"string"},"num_seasons_in_nba":{"type":"integer"},"year_of_birth":{"type":"integer"}},"required":["first name","last_name","num_seasons_in_nba"],"type":"object"}
+{"additionalProperties":false,"properties":{"a":{"type":"string"},"abc":{"type":"string"},"abcd":{"type":"string"},"abcde":{"type":"string"},"abc😊":{"type":"string"},"😊abc":{"type":"string"}},"required":["a","abcd","abc","abcde","abc😊"],"type":"object"}
+{"additionalProperties":false,"properties":{"XXX/YYY/ZZZ/GGG/HHHH":{"type":"string"},"first/name/A":{"type":"string"}},"type":"object"}
+{"additionalProperties":false,"properties":{"XXX/YYY/ZZZ/GGG/HHHH":{"type":"string"},"first/name/A":{"type":"string"}},"required":["first/name/A","XXX/YYY/ZZZ/GGG/HHHH"],"type":"object"}
+{"additionalProperties":false,"properties":{"first name":{"type":"string"},"last_name":{"type":"string"},"num_seasons_in_nba":{"type":"integer"},"year_of_birth":{"type":"integer"}},"required":["first name","last_name","year_of_birth"],"type":"object"}
+{"type":"string"}
+{"additionalProperties":false,"properties":{"extra":{"type":"string"},"location":{"type":"string"},"unit":{"type":["string","null"]}},"required":["location","unit"],"type":"object"}
+{"additionalProperties":false,"properties":{"extra":{"type":"string"},"location":{"type":"string"},"unit":{"type":["string","null","number","boolean","object"]}},"required":["location","unit"],"type":"object"}
+{"additionalProperties":false,"properties":{"xxx":{"enum":[true],"type":["boolean","null"]}},"required":["xxx"],"type":"object"}
+{"properties":{"items":{"items":{"type":["string","boolean","number","object","null"]},"type":"array"},"value":{"type":["string","number","null"]}},"required":["value","items"],"type":"object"}
+{"additionalProperties":false,"properties":{" ":{"type":"string"}},"required":[" "],"type":"object"}
+{"additionalProperties":false,"properties":{" H":{"type":"string"}},"required":[" H"],"type":"object"}
+{"additionalProperties":false,"properties":{"🧑🏾‍🤝‍🧑🏾":{"type":"string"}},"required":["🧑🏾‍🤝‍🧑🏾"],"type":"object"}
+{"additionalProperties":false,"properties":{" 12😊d🧑🏾‍🤝‍🧑🏾abc😊":{"type":"string"}},"required":[" 12😊d🧑🏾‍🤝‍🧑🏾abc😊"],"type":"object"}
+{"additionalProperties":false,"properties":{" ㄑㄧㄡˊ ㄋㄧㄡ犇 猋 骉 蟲 麤 毳 淼 掱 焱垚 煊 烜 烜 煐 焓 烓 焺 炜 烓 abc123@":{"type":"string"}},"required":[" ㄑㄧㄡˊ ㄋㄧㄡ犇 猋 骉 蟲 麤 毳 淼 掱 焱垚 煊 烜 烜 煐 焓 烓 焺 炜 烓 abc123@"],"type":"object"}
+{"additionalProperties":false,"properties":{"3.55":{"type":"number"}},"required":["3.55"],"type":"object"}
+{"additionalProperties":false,"properties":{"111":{"type":"integer"}},"required":["111"],"type":"object"}
+{"additionalProperties":false,"properties":{"poseType":{"enum":[-2,-1,0,1,2,-22,-2222,-3],"type":"integer"}},"required":["poseType"],"type":"object"}
+{"additionalProperties":false,"properties":{"location":{"enum":["beijing","shanghai","shenzheng"],"type":"string"},"name":{"type":"string"},"price":{"type":"integer"}},"required":["name","location"],"type":"object"}
+{"additionalProperties":false,"properties":{"attr":{"enum":["3.1"," a123🧑🏾‍🤝‍🧑🏾b","200","1",""],"type":"string"},"name":{"type":"string"},"price":{"type":"integer"}},"required":["name","attr"],"type":"object"}
+{"additionalProperties":false,"properties":{"age":{"enum":[100,200,666666666,3.333333,3.4444444444444446],"type":"number"},"name":{"type":"string"},"price":{"type":"integer"}},"required":["name","age"],"type":"object"}
+{"enum":["red","green","blue"],"type":"string"}
+{"enum":[2,45,100,3.33],"type":"number"}
+{"additionalProperties":false,"properties":{"attr":{"enum":["3.1",""," a123🧑🏾‍🤝‍🧑🏾b","200"],"type":"string"},"name":{"enum":["Eggs",""],"type":"string"},"price":{"type":"integer"}},"required":["name","attr"],"type":"object"}
+{"enum":[" true","\\ntrue","  false","\\rnull","\\ttrue","  null","  true","  false","\\r","\\n","\\t"," ","  "," a"," they"," \\n\\r\\t ","\\","\\t\\n\\r"],"type":"string"}
+{"enum":[true,false],"type":"boolean"}
+{"enum":[null],"type":"null"}
+{"type":["string","number"]}
+{"type":"boolean"}
+{"type":"null"}
+{"additionalProperties":true,"type":"object"}
+{"additionalProperties":false,"type":"object"}
+{"additionalProperties":false,"properties":{"key1":{"type":"string"}},"type":"object"}
+{"additionalProperties":{},"type":"object"}
+{"additionalProperties":{"type":"integer"},"properties":{"x":{"type":"string"}},"required":["x"],"type":"object"}
+{"additionalProperties":{"type":"integer"},"properties":{"x":{"type":"string"}},"type":"object"}
+{"additionalProperties":{"type":"integer"},"properties":{"xxx":{"type":"string"}},"type":"object"}
+{"additionalProperties":{"enum":["hello","hi"],"type":"string"},"type":"object"}
+{"additionalProperties":{"type":"string"},"properties":{"builtin":{"type":"number"}},"type":"object"}
+{"additionalProperties":{"type":"string"},"properties":{"builtin":{"type":"number"}},"type":"object"}
+{"additionalProperties":{"type":"string"},"properties":{"builtin":{"type":"number"}},"type":"object"}
+{"additionalProperties":{"type":"string"},"properties":{"builtin":{"type":"number"}},"type":"object"}
+{"additionalProperties":{"type":"string"},"properties":{"builtin":{"type":"number"}},"required":["builtin"],"type":"object"}
+{"additionalProperties":{"additionalProperties":{"type":"string"},"type":"object"},"type":"object"}
+{"additionalProperties":{"additionalProperties":{"enum":["hello","hi"],"type":"string"},"type":"object"},"type":"object"}
+{"additionalProperties":{"additionalProperties":{"type":"string"},"type":"object"},"properties":{"builtin":{"type":"string"}},"required":["builtin"],"type":"object"}
+{"additionalProperties":{"type":"string"},"type":"object"}
+{"additionalProperties":{"additionalProperties":true,"properties":{"data":{"type":"string"}},"type":"object"},"properties":{"age":{"type":"number"}},"type":"object"}
+{"additionalProperties":{"additionalProperties":true,"type":"object"},"properties":{"age":{"type":"number"}},"type":"object"}
+{"additionalProperties":{"additionalProperties":true,"type":"object"},"type":"object"}
+{"additionalProperties":{"additionalProperties":false,"type":"object"},"type":"object"}
+{"additionalProperties":{"additionalProperties":true,"properties":{"data":{"type":"string"}},"type":"object"},"properties":{"data":{"type":"integer"}},"type":"object"}
+{"additionalProperties":{"type":"string"},"properties":{"builtin":{"type":"number"}},"type":"object"}
+{"additionalProperties":{"properties":{"data":{"type":"string"}},"type":"object"},"properties":{"age":{"type":"number"}},"type":"object"}
+{"additionalProperties":false,"properties":{"color":{"items":{"type":"string"},"type":"array"}},"required":["color"],"type":"object"}
+{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array"}
+{"items":{"anyOf":[{"additionalProperties":false,"properties":{"name":{"type":"string"},"price":{"type":"number"}},"required":["name","price"],"type":"object"},{"additionalProperties":false,"properties":{"model":{"type":"string"},"weight":{"type":"number"}},"required":["model","weight"],"type":"object"}]},"type":"array"}
+{"additionalProperties":false,"properties":{"color":{"items":{"type":"string"},"minItems":2,"type":"array"}},"required":["color"],"type":"object"}
+{"items":{"type":"string"},"type":"array"}
+{"additionalProperties":false,"properties":{"color":{"anyOf":[{"enum":["red"],"type":"string"},{"enum":["green"],"type":"string"},{"enum":["blue"],"type":"string"}]}},"required":["color"],"type":"object"}
+{"additionalProperties":false,"properties":{"shape":{"anyOf":[{"additionalProperties":false,"properties":{"circle":{"additionalProperties":false,"properties":{"radius":{"type":"number"}},"required":["radius"],"type":"object"}},"required":["circle"],"type":"object"},{"additionalProperties":false,"properties":{"rectangle":{"additionalProperties":false,"properties":{"height":{"type":"number"},"width":{"type":"number"}},"required":["width","height"],"type":"object"}},"required":["rectangle"],"type":"object"}]}},"required":["shape"],"type":"object"}
+{"anyOf":[{"items":{"type":"string"},"type":"array"},{"additionalProperties":false,"properties":{"age":{"type":"integer"},"name":{"type":"string"}},"required":["name","age"],"type":"object"}]}
+{"additionalProperties":false,"properties":{"data":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"additionalProperties":false,"properties":{"age":{"type":"integer"},"name":{"type":"string"}},"required":["name","age"],"type":"object"}]}},"required":["data"],"type":"object"}
+{"additionalProperties":false,"properties":{"data":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"additionalProperties":false,"properties":{"age":{"type":"integer"},"info":{"anyOf":[{"type":"string"},{"type":"integer"}]},"name":{"type":"string"}},"required":["name","age"],"type":"object"}]}},"required":["data"],"type":"object"}
+{"anyOf":[{"additionalProperties":false,"properties":{"foo":{"type":"string"}},"required":["foo"],"type":"object"},{"additionalProperties":false,"properties":{"bar":{"type":"number"}},"required":["bar"],"type":"object"}]}
+{"additionalProperties":false,"properties":{"lang":{"enum":["Chinese","English"],"type":"string"},"limit":{"type":"integer"},"qs":{"anyOf":[{"type":"string"},{"items":{"type":"string"},"type":"array"}],"description":"place your query or queries here"}},"required":["qs"],"type":"object"}
+{"additionalProperties":false,"description":"A product from Acme's catalog","properties":{"dimensions":{"additionalProperties":false,"properties":{"height":{"type":"number"},"length":{"additionalProperties":false,"properties":{"raw_length":{"type":"number"},"stride":{"type":"number"}},"required":["stride","raw_length"],"type":"object"},"width":{"type":"number"}},"required":["length","width","height"],"type":"object"},"price":{"description":"The price of the product","type":"number"},"productId":{"description":"The unique identifier for a product","type":"integer"},"productName":{"description":"Name of the product","type":"string"},"tags":{"description":"Tags for the product","items":{"type":"string"},"minItems":1,"type":"array"}},"required":["productId","productName","price"],"type":"object"}
+{"additionalProperties":false,"properties":{"member":{"additionalProperties":false,"properties":{"addr":{"additionalProperties":false,"properties":{"country":{"type":"string"},"street":{"type":"string"}},"type":"object"},"phone":{"type":"string"}},"required":["phone","addr"],"type":"object"},"name":{"type":"string"}},"required":["member","name"],"type":"object"}
+{"description":"A product from Acme's catalog","type":"string"}
+{"$defs":{"build":{"description":"","properties":{"bundle":{"type":"boolean"},"esBuildPath":{"type":"string"},"esbuildVersion":{"type":"string"},"externals":{"type":"array"},"injects":{"type":"array"},"jsxFactory":{"type":"string"},"jsxFragment":{"type":"string"},"minify":{"type":"boolean"},"outDir":{"type":"string"},"target":{"type":"string"}},"type":"object"},"devServer":{"description":"","properties":{"autoStart":{"type":"boolean"},"liveReload":{"type":"boolean"},"mountDirectories":{"type":"object"},"port":{"type":"integer"},"useSSL":{"type":"boolean"},"watchConfig":{"properties":{"directories":{"type":"array"},"extensions":{"type":"array"}},"type":"object"}},"type":"object"},"fable":{"properties":{"autoStart":{"type":"boolean"},"extension":{"type":"string"},"outDir":{"type":"string"},"project":{"type":"string"}},"type":"object"}},"properties":{"build":{"$ref":"#/$defs/build"},"devServer":{"$ref":"#/$defs/devServer"},"fable":{"$ref":"#/$defs/fable"},"index":{"type":"string"},"packages":{"type":"object"}},"required":["index"],"title":"Perla","type":"object"}
+{"anyOf":[{"items":{"anyOf":[{"items":{"anyOf":[{"type":"object"},{"type":"string"}]},"type":"array"}]},"type":"array"},{"items":{"anyOf":[{"items":{"enum":[59,62,65],"type":"number"},"type":"array"}]},"type":"array"}]}
+{"anyOf":[{"items":{"type":"boolean"},"type":"array"},{"items":{"items":{"enum":[1,2,3],"type":"integer"},"type":"array"},"type":"array"}]}
+{"anyOf":[{"items":{"anyOf":[{"items":{"anyOf":[{"type":"object"},{"type":"string"}]},"type":"array"}]},"type":"array"}]}
+{"items":{"items":{"enum":[1,2,3],"type":"integer"},"type":"array"},"type":"array"}
+{"items":{"anyOf":[{"enum":[-73],"type":"number"},{"enum":[-2.2250738585072014],"type":"number"},{"maximum":33333,"type":"integer"}]},"maxItems":4,"minItems":0,"type":"array"}
+{"$defs":{"step":{"additionalProperties":false,"properties":{"explanation":{"type":"string"},"output":{"type":"string"}},"required":["explanation","output"],"type":"object"}},"additionalProperties":false,"properties":{"final_answer":{"type":"string"},"steps":{"items":{"$ref":"#/$defs/step"},"type":"array"}},"required":["steps","final_answer"],"type":"object"}
+{"$defs":{"Addr":{"properties":{"city":{"type":"string"},"country":{"type":"string"},"street":{"type":"string"}},"required":["country","city","street"],"type":"object"},"ParentObject":{"properties":{"child":{"type":"string"}},"type":"object"}},"properties":{"address":{"$ref":"#/$defs/Addr"},"parent":{"$ref":"#/$defs/ParentObject"}},"type":"object"}
+{"$defs":{"address":{"properties":{"city":{"type":"string"},"postal":{"$ref":"#/$defs/postal"},"street":{"type":"string"}},"required":["street","city"],"type":"object"},"contact":{"properties":{"email":{"type":"string"},"phone":{"type":"string"}},"required":["email"],"type":"object"},"person":{"properties":{"address":{"$ref":"#/$defs/address"},"contact":{"$ref":"#/$defs/contact"},"name":{"type":"string"}},"required":["name","contact","address"],"type":"object"},"postal":{"properties":{"code":{"type":"string"},"country":{"type":"string"}},"required":["code","country"],"type":"object"}},"properties":{"employee":{"$ref":"#/$defs/person"}},"required":["employee"],"type":"object"}
+{"additionalProperties":false,"properties":{"attributes":{"description":"Arbitrary attributes for the UI component, suitable for any element","items":{"additionalProperties":false,"properties":{"name":{"description":"The name of the attribute, for example onClick or className","type":"string"},"value":{"description":"The value of the attribute","type":"string"}},"required":["name","value"],"type":"object"},"type":"array"},"children":{"description":"Nested UI components","items":{"$ref":"#"},"type":"array"},"label":{"description":"The label of the UI component, used for buttons or form fields","type":"string"},"type_info":{"description":"The type of the UI component","enum":["div","button","header","section","field","form"],"type":"string"}},"required":["type_info","label","children","attributes"],"type":"object"}
+{"$defs":{"mySchema":{"additionalProperties":false,"properties":{"child":{"$ref":"#/$defs/mySchema"},"name":{"type":"string"}},"type":"object"}},"properties":{"root":{"$ref":"#/$defs/mySchema"}},"type":"object"}
+{"$defs":{"linked_list_node":{"additionalProperties":false,"properties":{"next":{"anyOf":[{"$ref":"#/$defs/linked_list_node"},{"type":"null"}]},"value":{"type":"number"}},"required":["value","next"],"type":"object"}},"additionalProperties":false,"properties":{"linked_list":{"$ref":"#/$defs/linked_list_node"}},"required":["linked_list"],"type":"object"}
+{"$defs":{"mySchema":{"$ref":"#/$defs/mySchema2","description":"mySchema"},"mySchema2":{"$ref":"#/$defs/mySchema3","title":"mySchema2"},"mySchema3":{"type":"number"}},"properties":{"name":{"$ref":"#/$defs/mySchema"}},"type":"object"}
+{"$defs":{"a":{"$ref":"#/$defs/c"},"b":{"$ref":"#/$defs/c"},"c":{"type":"string"}},"anyOf":[{"$ref":"#/$defs/a"},{"$ref":"#/$defs/b"}]}
+{"$defs":{"a":{"$ref":"#/$defs/c"},"b":{"$ref":"#/$defs/c"},"c":{"type":"string"}},"properties":{"address":{"anyOf":[{"$ref":"#/$defs/a"},{"$ref":"#/$defs/b"}]},"name":{"anyOf":[{"$ref":"#/$defs/a"},{"$ref":"#/$defs/b"}]}},"type":"object"}

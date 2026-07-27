@@ -1,0 +1,11 @@
+Directory layout: one folder per suite name, e.g. TestBasicTypes/ (listed in validatorJSONLSuiteDirs in validator_test.go).
+
+Run one suite: go test -run 'TestValidatorJSONLSuites/TestBasicTypes$' ./...
+
+valid.jsonl
+  - One line = one schema string passed to Validate (must be valid JSON).
+  - Append a line to add a passing case.
+
+invalid.jsonl
+  - Omitted from this KVV snapshot for now.
+  - The CI validator only exercises valid schemas and checks whether response_format rejects them with HTTP 400.

@@ -18,3 +18,10 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# Generated reports
+real_verification_report.json
+
+# Temporary debug scripts
+retry_*.py
+show_*.py

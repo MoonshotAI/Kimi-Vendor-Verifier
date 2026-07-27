@@ -1,0 +1,4 @@
+{"anyOf":[{"type":"string"},{"type":"number"}]}
+{"anyOf":[{"properties":{"name":{"default":"John","type":"string"}},"type":"object"},{"properties":{"age":{"type":"integer"}},"type":"object"}]}
+{"items":{"anyOf":[{"type":"string"},{"type":"number"}]},"type":"array"}
+{"$defs":{"NumberType":{"type":"number"},"StringType":{"type":"string"}},"$id":"anyOf with refs","anyOf":[{"$ref":"#/$defs/StringType"},{"$ref":"#/$defs/NumberType"}],"title":"anyOf with refs"}

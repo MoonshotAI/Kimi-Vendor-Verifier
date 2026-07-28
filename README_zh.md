@@ -18,7 +18,7 @@ thinking effort: max
 | DigitalOcean | 0.89 | 0.816 | TBD | TBD |
 | Inferact | 0.893 | TBD | TBD | TBD |
 | Nebius | 0.878 | 0.814 | TBD | TBD |
-| Modal | 0.887 | 0.817 | 0.322 | TBD |
+| Modal | 0.887 | 0.817 | 0.322 | 65.8 |
 
 
 

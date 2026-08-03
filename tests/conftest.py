@@ -15,8 +15,7 @@ import pytest
 # official deployments use this list via the `is_vendor` fixture.
 MOONSHOT_APIS = [
     "https://api.moonshot.cn/v1",
-    "https://api.msh.team/v1",
-    "https://api-intl.msh.team/v1",
+    "https://api.moonshot.ai/v1"
 ]
 
 

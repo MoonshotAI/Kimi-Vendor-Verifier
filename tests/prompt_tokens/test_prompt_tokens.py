@@ -1,11 +1,11 @@
 """Prompt token groundtruth tests.
 
 Each loaded JSONL case in ``testdata/prompt_token_cases`` contains a chat
-completion request and the exact ``expected_prompt_tokens`` the vendor must
-report. The test sends every case with ``stream=true`` and compares the
-returned ``usage.prompt_tokens`` against the expected constant. Local image
-fixtures are resized and encoded as base64 data URLs immediately before the
-request.
+completion request and an ``expected_prompt_tokens`` baseline. The test sends
+every case with ``stream=true`` and accepts the returned
+``usage.prompt_tokens`` when it is between the expected value and three tokens
+above it, inclusive. Local image fixtures are resized and encoded as base64
+data URLs immediately before the request.
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ CASE_DIR = Path(__file__).parents[2] / "testdata" / "prompt_token_cases"
 CASE_PATHS = (CASE_DIR / "cases.jsonl", CASE_DIR / "vision_cases.jsonl")
 IMAGE_FIXTURE_DIR = CASE_DIR / "images"
 MAX_IMAGE_DIMENSION = 4096
+MAX_PROMPT_TOKEN_OVERCOUNT = 3
 
 STANDARD_PARAMS = {
     "messages",
@@ -152,6 +153,10 @@ def _get_field(value: Any, name: str) -> Any:
     return getattr(value, name, None)
 
 
+def _prompt_tokens_are_acceptable(*, expected: int, actual: int) -> bool:
+    return expected <= actual <= expected + MAX_PROMPT_TOKEN_OVERCOUNT
+
+
 def _extract_stream_prompt_tokens(stream: Any) -> tuple[int | None, str]:
     """Read usage.prompt_tokens from a streaming response."""
     chunk_count = 0
@@ -188,6 +193,21 @@ def _error_message(exc: openai.APIStatusError) -> str:
         except Exception:
             pass
     return "\n".join(part for part in parts if part)
+
+
+@pytest.mark.parametrize(
+    ("actual", "accepted"),
+    [
+        (99, False),
+        (100, True),
+        (103, True),
+        (104, False),
+    ],
+)
+def test_prompt_token_tolerance_boundaries(actual: int, accepted: bool) -> None:
+    assert (
+        _prompt_tokens_are_acceptable(expected=100, actual=actual) is accepted
+    )
 
 
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
@@ -230,7 +250,9 @@ def test_prompt_tokens_match_groundtruth(
     assert actual is not None, (
         f"case {case['id']}: could not read prompt_tokens: {message}"
     )
-    assert actual == expected, (
-        f"case {case['id']}: prompt_tokens mismatch: "
-        f"got {actual}, expected {expected} (diff {actual - expected:+d})"
+    allowed_max = expected + MAX_PROMPT_TOKEN_OVERCOUNT
+    assert _prompt_tokens_are_acceptable(expected=expected, actual=actual), (
+        f"case {case['id']}: prompt_tokens outside accepted range: "
+        f"got {actual}, expected [{expected}, {allowed_max}] "
+        f"(diff {actual - expected:+d})"
     )

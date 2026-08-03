@@ -15,7 +15,7 @@ thinking effort: max
 | Moonshot | 0.89 | 0.82 | 0.31 | 0.675 |
 | Fireworks | 0.89 | 0.82 | 0.3037 | 0.664 |
 | Baseten | 0.889 | 0.804 | 0.2975 | TBD |
-| Together | 0.897 | 0.820 | 0.3160 | 67.8 |
+| Together | 0.897 | 0.820 | 0.3160 | 0.678 |
 | DigitalOcean | 0.89 | 0.816 | TBD | TBD |
 | Inferact | 0.891 | 0.818 | TBD | TBD |
 | Nebius | 0.878 | 0.814 | TBD | TBD |

@@ -16,7 +16,7 @@ thinking effort: max
 | Baseten | 0.889 | 0.804 | 0.2975 | TBD |
 | Together | 0.897 | 0.820 | 0.3160 | 0.678 |
 | DigitalOcean | 0.89 | 0.816 | TBD | TBD |
-| Inferact | 0.891 | 0.818 | TBD | TBD |
+| Inferact (vLLM ref.) | 0.891 | 0.818 | 0.3188 | 0.695 |
 | Nebius | 0.878 | 0.814 | TBD | TBD |
 | Modal | 0.887 | 0.817 | 0.322 | 0.658 |
 

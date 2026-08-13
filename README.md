@@ -18,7 +18,7 @@ thinking effort: max
 | Together | 0.897 | 0.820 | 0.3160 | 0.678 |
 | DigitalOcean | 0.89 | 0.816 | TBD | TBD |
 | Inferact (vLLM ref.) | 0.891 | 0.818 | 0.3188 | 0.695 |
-| Nebius | 0.878 | 0.814 | TBD | TBD |
+| Nebius | 0.878 | 0.814 | 0.2913 | 0.673 |
 | Modal | 0.887 | 0.817 | 0.322 | 0.658 |
 
 ## Overview

@@ -20,6 +20,7 @@ thinking effort: max
 | Inferact (vLLM ref.) | 0.891 | 0.818 | 0.3188 | 0.695 |
 | Nebius | 0.878 | 0.814 | 0.2913 | 0.673 |
 | Modal | 0.887 | 0.817 | 0.322 | 0.658 |
+| RadixArk (SGlang ref.) | 0.895 | 0.820 | 0.3107 | 0.667 |
 
 ## Overview
 

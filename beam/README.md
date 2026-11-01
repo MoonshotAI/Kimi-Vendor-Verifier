@@ -20,6 +20,11 @@ judging are decoupled, and both are resumable):
 2. `beam_judge.py` — scores each answer against its rubric with an
    LLM-as-Judge, writes `scores.jsonl` and prints a summary.
 
+Before appending on restart, both scripts discard an unfinished final JSONL
+record, including a partially written UTF-8 character. Complete records are
+preserved; a complete final record without a newline receives its missing
+separator. The unfinished question is processed again.
+
 ## Setup
 
 ```bash

@@ -11,6 +11,9 @@ BEAM 通过在最长可达 1M token 的多轮对话上提出 probing questions�
 1. `beam_generate.py`：将完整对话历史 + probing question 发送给被测模型，逐行写入 `answers.jsonl`。
 2. `beam_judge.py`：使用 LLM-as-Judge 按 rubric 为每个答案打分，写入 `scores.jsonl` 并打印汇总结果。
 
+重启后追加结果前，两个脚本都会移除末尾未写完的 JSONL 记录，包括写到一半的 UTF-8 字符。
+完整记录保持不变；末尾记录完整但缺少换行时会补上分隔符。未写完的问题会重新处理。
+
 ## 环境准备
 
 ```bash

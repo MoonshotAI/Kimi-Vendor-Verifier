@@ -30,6 +30,11 @@ import re
 import sys
 import time
 
+if __package__:
+    from .checkpoint import open_append
+else:
+    from checkpoint import open_append
+
 try:
     from openai import AsyncOpenAI
 except ImportError:
@@ -338,11 +343,11 @@ def row_key(row: dict) -> str:
 def load_scores(path: str) -> dict:
     scores = {}
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "rb") as f:
             for line in f:
                 try:
                     r = json.loads(line)
-                except json.JSONDecodeError:
+                except (json.JSONDecodeError, UnicodeDecodeError):
                     continue
                 scores[f"{r['chat_id']}|{r['question_type']}|{r['question_index']}"] = r["score"]
     return scores
@@ -370,11 +375,11 @@ def print_summary(rows: list, scores: dict) -> None:
 
 async def run(args) -> None:
     rows = []
-    with open(args.answers, "r", encoding="utf-8") as f:
+    with open(args.answers, "rb") as f:
         for line in f:
             try:
                 rows.append(json.loads(line))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
     print(f"loaded {len(rows)} answers from {args.answers}", flush=True)
 
@@ -393,7 +398,7 @@ async def run(args) -> None:
             max_retries=0,
         )
         sem = asyncio.Semaphore(args.concurrency)
-        out = open(args.output, "a", encoding="utf-8")
+        out = open_append(args.output)
         t0 = time.time()
         counter = {"n": 0}
 

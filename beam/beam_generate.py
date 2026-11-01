@@ -27,6 +27,11 @@ import os
 import sys
 import time
 
+if __package__:
+    from .checkpoint import open_append
+else:
+    from checkpoint import open_append
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 CHATS_FILE = os.path.join(DATA_DIR, "beam_1m_chats.jsonl.gz")
 QUESTIONS_FILE = os.path.join(DATA_DIR, "beam_1m_questions.jsonl")
@@ -100,11 +105,11 @@ def doc_key(doc: dict) -> str:
 def load_done_keys(output_path: str) -> set:
     done = set()
     if os.path.exists(output_path):
-        with open(output_path, "r", encoding="utf-8") as f:
+        with open(output_path, "rb") as f:
             for line in f:
                 try:
                     row = json.loads(line)
-                except json.JSONDecodeError:
+                except (json.JSONDecodeError, UnicodeDecodeError):
                     continue
                 done.add(f"{row['chat_id']}|{row['question_type']}|{row['question_index']}")
     return done
@@ -191,7 +196,7 @@ async def run(args) -> None:
         max_retries=0,  # retries handled manually
     )
     sem = asyncio.Semaphore(args.concurrency)
-    out = open(args.output, "a", encoding="utf-8")
+    out = open_append(args.output)
     t0 = time.time()
     counter = {"n": 0}
 

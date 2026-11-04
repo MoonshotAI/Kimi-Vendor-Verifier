@@ -17,6 +17,8 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState, generate
 
+from utils import with_request_context
+
 DATASET_PATH = "echo840/OCRBench"
 
 
@@ -115,6 +117,6 @@ def ocrbench(limit: Optional[int] = None) -> Task:
             sample_fields=record_to_sample,
             limit=limit,
         ),
-        solver=[generate()],
+        solver=[with_request_context(generate())],
         scorer=ocrbench_scorer(),
     )

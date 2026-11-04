@@ -22,7 +22,7 @@ dependencies = [
 
 [tool.pytest.ini_options]
 addopts = "-q"
-testpaths = ["tests"]
+testpaths = ["tests", "kvv_selftest"]
 markers = [
     "smoke_test: quick smoke tests",
     "flaky: tests that may be retried on failure",

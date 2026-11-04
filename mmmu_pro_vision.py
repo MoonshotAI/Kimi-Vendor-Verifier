@@ -23,6 +23,8 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState, generate
 
+from utils import with_request_context
+
 MMMU_PRO_10c_DATASET = "MMMU/MMMU_Pro"
 MMMU_PRO_10c_SUBSET = "standard (10 options)"
 
@@ -212,6 +214,6 @@ def mmmu_pro_10c(
 ) -> Task:
     return Task(
         dataset=load_mmmu_pro_dataset(dataset_name, subset, limit),
-        solver=[generate()],
+        solver=[with_request_context(generate())],
         scorer=mmmu_pro_scorer(),
     )

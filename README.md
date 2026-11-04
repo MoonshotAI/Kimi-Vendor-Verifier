@@ -2,13 +2,33 @@
 
 English | [中文](README_zh.md)
 
+Kimi Vendor Verifier (KVV) verifies whether a vendor deployment meets Kimi model accuracy and API feature requirements. The project contains two kinds of evaluation: benchmark evaluations built on [inspect-ai](https://github.com/UKGovernmentBEIS/inspect_ai), and standalone verifiers that call the chat-completions API directly.
+
+## K3.1 Pro Evaluation Results
+
+| model | thinking effort |
+|-------|-----------------|
+| kimi-k3.1-pro | max |
+
+| Provider | OCRBench | MMMU Pro Vision | BEAM (1M) | DeepSWE | ToolCall bench |
+|----------|----------|-----------------|-----------|---------|----------------|
+| Moonshot | 0.872 | 0.841 | 0.3917 | 0.755 | 0.972 |
+| Basten | 0.881 | 0.847 | 0.3897 | 0.746 | 0.980 |
+| DigitalOcean | 0.880 | 0.846 | TBD | TBD | 0.980 |
+| Fireworks | 0.866 | 0.837 | 0.3888 | 0.754 | 0.986 |
+| Inferact | 0.884 | TBD | TBD | TBD | 0.972 |
+| Modal | 0.876 | 0.841 | 0.3883 | 0.764 | 1.0 |
+| Nebius | 0.869 | 0.842 | 0.3921 | TBD | 0.973 |
+| Together | 0.886 | 0.842 | 0.3842 | 0.735 | 0.998 |
+| Verda | 0.878 | 0.846 | 0.3976 | 0.757 | 1.0 |
+
 ## K3 Evaluation Results
 
-Listed in the order of submission time.
+Ranked in the order of submission time.
 
-model: kimi-k3
-
-thinking effort: max
+| model | thinking effort |
+|-------|-----------------|
+| kimi-k3 | max |
 
 | Provider | OCRBench | MMMU Pro Vision | BEAM (1M) | DeepSWE |
 |----------|----------|-----------------|-----------|---------|
@@ -29,9 +49,11 @@ thinking effort: max
 | Inspect-ai benchmark | OCRBench | OCR text recognition benchmark |
 | Inspect-ai benchmark | MMMU Pro Vision | Multimodal understanding benchmark (visual QA) |
 | Inspect-ai benchmark | AIME 2025 | Mathematical reasoning benchmark; no longer used for K3 |
+| Inspect-ai benchmark | Kimi Tool Call | Production badcase regression samples for checking single-step tool-call correction under long context |
 | Standalone script | BEAM (1M) | Long-term memory benchmark over 1M-token conversations, see [beam/](beam/README.md) |
 | Pytest verifier | `tests/params/` | API parameter constraint pre-flight validation |
 | Pytest verifier | `tests/tool_call_json_schema/` | Tool-call argument validation for walle-valid MFJS schemas |
+| Pytest verifier | `tests/toolcall_reject_cases/` | Validates malformed tool-call requests are rejected (e.g., missing `function.name`) |
 | Pytest verifier | `tests/k3_features/` | K3 feature contract validation, including dynamic tools, response_format, tool_choice, and thinking effort |
 | Pytest verifier | `tests/prompt_tokens/` | Verifies vendor-reported `usage.prompt_tokens` against expected constants |
 | Agent benchmark | [DeepSWE](https://github.com/datacurve-ai/deep-swe) | Multi-step tool-use and coding-agent evaluation, run on the Pier platform |
@@ -46,9 +68,13 @@ uv sync && uv pip install -e .
 
 ### Configure Environment Variables
 
+Note: the `thinking` parameter has a breaking change in K3, using reasoning_effort instead of thinking; The `ENABLE_THINKING_EFFORT` flag can only be used for K3-series validation. For endpoints that only accept `max_completion_tokens`, set the environment variable `KVV_TOKEN_PARAM=max_completion_tokens` to switch the wire parameter for tests/ testsuites and beam scripts (eval.py use CLI argument, the two spellings never appear together), otherwise using `max_tokens`.
+
 ```bash
 export KIMI_API_KEY="your-api-key"
 export KIMI_BASE_URL="your-base-url"
+export ENABLE_THINKING_EFFORT="true"
+export KVV_TOKEN_PARAM="max_completion_tokens" #optional
 ```
 
 Or copy `.env.example` to `.env` and fill in the configuration.
@@ -73,7 +99,7 @@ Run formal benchmarks only after all tests pass.
 
 ### Tool Call JSON Schema Validation: `tests/tool_call_json_schema/`
 
-Validate that the vendor can use walle-valid MFJS schemas as tool-call `parameters` and return `tool_calls[].function.arguments` that conform to the schema.
+Validate that the vendor can use walle-valid MFJS schemas as tool-call `parameters` and return `tool_calls[].function.arguments` that conform to the schema, and that walle-rejected schemas (e.g. non-terminating recursion) are answered with HTTP 400.
 
 ```bash
 uv run pytest -n 4 tests/tool_call_json_schema \
@@ -90,6 +116,9 @@ uv run pytest -n 4 tests/tool_call_json_schema \
 
 This check runs walle `valid.jsonl` cases, sends each schema as `tools[].function.parameters`, forces a tool call, and uses `jsonschema` to validate the returned `function.arguments` locally. Each selected case is run once with `stream=false` and once with `stream=true`; streaming chunks are reassembled before validation. In GitLab CI, this check runs as the `verify_tool_call_json_schema` job; the same retry options are applied. In addition to the JUnit XML report, a JSON report (`tool-call-schema-report.json`) is produced containing the selected cases, per-case outcomes, and the same `summary` block (total / by_status / by_selection_reason / by_mode) that the original standalone script printed at the end of its log.
 
+The suite also runs supplemental cases from `testdata/walle_validator_cases/go_validator_cases.jsonl` -- schemas from upstream walle Go `validator_test.go` that are absent from the `valid.jsonl` snapshot (see `testdata/walle_validator_cases/SOURCE.md`). Accepted cases send the original schema as `parameters` and validate the returned `function.arguments` against the walle Canonical form; a non-object root schema is wrapped as a `value` parameter before sending. Rejected cases (recursive schemas for which no finite instance exists) assert the endpoint responds with HTTP 400. These supplemental cases are loaded from the fixed path above -- they are not affected by `--case-dir`, `--selection`, or `--max-cases` -- and each runs once with `stream=false` and once with `stream=true`; in the JSON report they appear with `suite` `go_validator_cases` and `selection_reason` `go_validator`.
+* Note: MSJS is specific to Kimi's think-mode. Open-source implementations that are not aligned with MSJS will report errors (i.e., fail these checks).
+
 #### Arguments
 
 | Argument | Meaning | Default |
@@ -101,13 +130,28 @@ This check runs walle `valid.jsonl` cases, sends each schema as `tools[].functio
 | `--selection` | Case selection mode: `all` / `explicit` / `object` | `all` |
 | `--max-cases` | Maximum number of selected cases to run | No limit |
 | `--thinking` | Enable thinking mode for the tool-call request | Off |
-| `--think-mode` | Thinking parameter format: `kimi`, `opensource`, or `none` | `THINK_MODE` env var, otherwise `kimi` |
+| `--think-mode` | Thinking parameter format: `kimi`, `opensource` | `THINK_MODE` env var, otherwise `kimi` |
 | `--max-tokens` | Maximum output tokens for each tool-call response | `2048` |
 | `--tool-json-report` | Path to the additional JSON report artifact | `tool-call-schema-report.json` |
 
-### K3 Feature Validation: `tests/k3_features/`
+### Tool Call Reject Validation: `tests/toolcall_reject_cases/`
 
-Validate K3 API features such as dynamic tools, `response_format`, `tool_choice`, and thinking effort.
+Validates that the vendor correctly rejects malformed tool-call requests, such as those missing the required `function.name` field. This check sends each case in `testdata/toolcall_reject_cases/rejected_case.jsonl` with `stream=false` and asserts that the server responds with `BadRequestError` (HTTP 400).
+
+```bash
+uv run pytest tests/toolcall_reject_cases \
+    --base-url "${KIMI_BASE_URL}" \
+    --api-key "${KIMI_API_KEY}" \
+    --smoke-model "${MODEL_NAME}" \
+    --junitxml=toolcall-reject-report.xml \
+    -ra -v
+```
+
+The CI job `verify_toolcall_reject` is equivalent to the command above. Locally, run `./run_eval.sh verify_toolcall_result_reject` to execute it in one step.
+
+## K3 Feature Validation: `tests/k3_features/`
+
+Validate K3 API features such as dynamic tools, `response_format`, `tool_choice`, and thinking effort. For endpoints that only accept `max_completion_tokens`, set the environment variable `KVV_TOKEN_PARAM=max_completion_tokens` to switch the wire parameter globally (the two spellings never appear together).
 
 ```bash
 uv run pytest tests/k3_features \
@@ -122,10 +166,20 @@ uv run pytest tests/k3_features \
 | `--smoke-model` | Vendor model name | `MODEL_NAME` env var |
 | `--base-url` | API base URL | `KIMI_BASE_URL` env var, otherwise Moonshot API |
 | `--api-key` | API key | `KIMI_API_KEY` env var |
+| `--think-mode` | `kimi` (official API) or `opensource` (vLLM etc.) | `THINK_MODE` env var, otherwise `kimi` |
+
+
+With `opensource` (open-source servers such as vLLM):
+
+- Thinking effort is sent via the standard `reasoning_effort` parameter
+  instead of the Kimi-private `thinking` object.
+- Tests for platform-side (walle/MFJS) request validation and tokenism
+  prompt-token groundtruth are skipped -- those belong to the Kimi
+  platform layer, not to a bare open-source deployment.
 
 The CI job `verify_k3_features` runs the pytest suite and reports results from the test log.
 
-### Prompt Token Validation: `tests/prompt_tokens/`
+## Prompt Token Validation: `tests/prompt_tokens/`
 
 Validate that vendor-reported `usage.prompt_tokens` is accurate. This check
 sends the text cases in `testdata/prompt_token_cases/cases.jsonl` and vision
@@ -142,6 +196,13 @@ uv run pytest tests/prompt_tokens \
     --smoke-model "${MODEL_NAME}" \
     -ra -v
 ```
+
+With `--think-mode opensource`, the suite also sends
+`stream_options: {"include_usage": true}` (open-source servers only emit
+`usage` in streams when asked) and adjusts the expected constants for
+systematic, measured deltas of vLLM serving: +3 for the generation-prefix
+channel marker that the platform tokenism counts as pending, and +1 per
+image placeholder.
 
 ### Why These Tests Are Not in Inspect-ai
 
@@ -172,14 +233,19 @@ uv run pytest tests/prompt_tokens \
 
 K3 no longer uses AIME 2025 and adds the `reasoning_effort` parameter.
 
+Both kimi-k3 and kimi-k3.1-pro use the following parameters:
+
 | Benchmark | Mode (thinking, preserve thinking, effort) | Temperature | TopP | Max Tokens | Epochs |
 |-----------|--------------------------------------------|-------------|------|------------|--------|
-| OCRBench | Thinking, Keep all, low | 1.0 | 0.95 | 16384 | 1 |
-| OCRBench | Thinking, Keep all, high | 1.0 | 0.95 | 16384 | 1 |
-| OCRBench | Thinking, Keep all, max | 1.0 | 0.95 | 16384 | 1 |
-| MMMU | Thinking, Keep all, low | 1.0 | 0.95 | 98304 | 1 |
-| MMMU | Thinking, Keep all, high | 1.0 | 0.95 | 98304 | 1 |
-| MMMU | Thinking, Keep all, max | 1.0 | 0.95 | 98304 | 1 |
+| OCRBench | reasoning_effort, low | 1.0 | 0.95 | 16384 | 1 |
+| OCRBench | reasoning_effort, high | 1.0 | 0.95 | 16384 | 1 |
+| OCRBench | reasoning_effort, max | 1.0 | 0.95 | 16384 | 1 |
+| MMMU | reasoning_effort, low | 1.0 | 0.95 | 98304 | 1 |
+| MMMU | reasoning_effort, high | 1.0 | 0.95 | 98304 | 1 |
+| MMMU | reasoning_effort, max | 1.0 | 0.95 | 98304 | 1 |
+| Tool Call | reasoning_effort, low | 1.0 | 0.95 | 32768 | 1 |
+| Tool Call | reasoning_effort, high | 1.0 | 0.95 | 32768 | 1 |
+| Tool Call | reasoning_effort, max | 1.0 | 0.95 | 32768 | 1 |
 
 ## Running Inspect-ai Benchmarks
 
@@ -204,8 +270,7 @@ uv run python eval.py ocrbench --model kimi/your-model-id \
 ```bash
 uv run python eval.py ocrbench \
     --model "${THINK_MODE}/${MODEL_NAME}" \
-    --max-tokens 16384 \
-    --thinking \
+    --max-completion-tokens 16384 \
     --think-mode "$THINK_MODE" \
     --stream \
     --max-connections 50 \
@@ -235,8 +300,7 @@ uv run python eval.py mmmu --model kimi/your-model-id \
 ```bash
 uv run python eval.py mmmu \
     --model "$MODEL" \
-    --max-tokens 98304 \
-    --thinking \
+    --max-completion-tokens 98304 \
     --think-mode "$THINK_MODE" \
     --stream \
     --max-connections 50 \
@@ -263,11 +327,51 @@ uv run python eval.py aime2025 --model kimi/your-model-id \
 
 Run OCRBench first as a quick deployment sanity check, then run the full MMMU and other benchmark evaluations.
 
+### Tool Call
+
+This benchmark uses JSONL data format. See [toolcall_benchmark/README.md](toolcall_benchmark/README.md) for field definitions.
+
+> Note: There is no non-thinking tool-call benchmark. Newer models have no non-thinking requirement, so only the thinking dataset (`toolcall_thinking_samples.stable2.jsonl`) is provided. The commands below are examples — substitute your own model and parameter values.
+
+#### Thinking
+
+```bash
+uv run python eval.py kimi_toolcall \
+  --model "kimi/${MODEL_NAME}" \
+  --max-tokens 32768 \
+  --thinking \
+  --think-mode "$THINK_MODE" \
+  --stream \
+  --max-connections 50 \
+  --temperature 1.0 \
+  --top-p 0.95 \
+  --dataset toolcall_benchmark/toolcall_thinking_samples.stable2.jsonl
+```
+
+#### Thinking + reasoning effort (K3)
+
+`$THINK_EFFORT` can be `low`, `high`, `max`, or `none` (`none` disables thinking).
+
+```bash
+uv run python eval.py kimi_toolcall \
+  --model "${THINK_MODE}/${MODEL_NAME}" \
+  --max-completion-tokens 32768 \
+  --thinking-effort "$THINK_EFFORT" \
+  --think-mode "$THINK_MODE" \
+  --stream \
+  --max-connections 50 \
+  --temperature 1.0 \
+  --top-p 0.95 \
+  --dataset toolcall_benchmark/toolcall_thinking_samples.stable2.jsonl
+```
+
 ## Agent Benchmark (DeepSWE)
 
-To cover that capability, we also add an agent benchmark based on the open-source [DeepSWE](https://github.com/datacurve-ai/deep-swe) benchmark. DeepSWE contains 113 coding-agent tasks and is used here through the open-source Pier platform. The agent runtime uses Kimi-code `0.23.6` or later.
+The Tool Call benchmark is built from bad cases previously observed in production. Some samples include repeated tool calls or incorrect tool calls, so this benchmark is mainly useful for checking whether the model can correct a single step under long-context conditions. It is not sufficient to verify whether an agent can solve a task by calling tools multiple times across a full workflow.
 
-Before running the benchmark on Pier, register `kimi-code` on the Pier agent first. See the Kimi-code `0.23.6` setup reference: https://github.com/MoonshotAI/kimi-code/tree/%40moonshot-ai/kimi-code%400.23.6
+To cover that capability, we also add an agent benchmark based on the open-source [DeepSWE](https://github.com/datacurve-ai/deep-swe) benchmark. DeepSWE contains 113 coding-agent tasks and is used here through the open-source Pier platform. The agent runtime uses Kimi-code `0.29.0` or later.
+
+Before running the benchmark on Pier, register `kimi-code` on the Pier agent first. See the Kimi-code `0.29.0` setup reference: https://github.com/MoonshotAI/kimi-code/tree/%40moonshot-ai/kimi-code%400.29.0
 
 ## Inspect-ai Parameters
 
@@ -275,33 +379,38 @@ Before running the benchmark on Pier, register `kimi-code` on the Pier agent fir
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `benchmark` | Evaluation task: `ocrbench`, `mmmu`, `aime2025` | `ocrbench` |
+| `benchmark` | Evaluation task: `ocrbench`, `mmmu`, `aime2025`, `kimi_toolcall` | `ocrbench` |
 | `--model` | Model identifier, for example `kimi/your-model-id` | **Required** |
-| `--max-tokens` | Maximum output tokens, see recommended benchmark parameters | **Required** |
-| `--thinking` | Enable thinking mode | Off |
-| `--think-mode` | Thinking parameter format: `none`, `kimi`, or `opensource` | `none` |
+| `--max-tokens` | Maximum output tokens, sent as `max_tokens`; mutually exclusive with `--max-completion-tokens` | One of the two is required |
+| `--max-completion-tokens` | Equivalent of `--max-tokens`; for endpoints that reject `max_tokens` | One of the two is required |
+| `--thinking` | Enable thinking mode (K2 series). K3 remains compatible, but using `reasoning_effort` via `--thinking-effort` is recommended | Off |
+| `--think-mode` | Thinking parameter format: `kimi` or `opensource` | `kimi` |
 | `--temperature` | Sampling temperature | Optional; determined by server or model defaults if omitted |
 | `--top-p` | Top-p sampling | Optional; determined by server or model defaults if omitted |
 | `--stream` | Enable streaming, recommended for long reasoning requests | Off |
 | `--max-connections` | Maximum concurrent connections | Per benchmark |
 | `--epochs` | Number of sampling epochs | Per benchmark |
 | `--client-timeout` | HTTP timeout in seconds | `86400` |
-| `--thinking-effort` | K3 reasoning effort parameter: `low`, `high`, `max` | None |
+| `--thinking-effort` | Thinking effort: `low`, `high`, `max`, or `none`. With `--think-mode kimi` it is sent directly as `reasoning_effort` (`none` disables thinking, equivalent to non-thinking); no `--thinking` flag needed | None |
+| `--dataset` | Only used for the `kimi_toolcall` benchmark | None |
 
 ### Thinking Mode Parameters
 
+With `--think-mode kimi`, when `--thinking-effort` is given, both the legacy `thinking` object (with `keep`/`effort`) and the top-level `reasoning_effort` are sent — the two forms coexist (K2-compatible stacks read the former, K3 reads the latter). `none` disables thinking in both forms. An explicit effort implies thinking is enabled, so `--thinking` can be omitted. The same applies to K3 open-source deployments (`--think-mode opensource`), where the legacy form is `chat_template_kwargs`.
+
 | Model Type | Parameter Combination | `extra_body` Sent |
 |------------|-----------------------|-------------------|
-| Kimi official + thinking off | `--think-mode kimi` | `{"thinking": {"type": "disabled"}}` |
-| Kimi official + thinking on | `--thinking --think-mode kimi` | `{"thinking": {"type": "enabled"}}` |
-| Kimi official + reasoning effort low | `--thinking --think-mode kimi --thinking-effort low` | `{"thinking": {"type": "enabled", "keep": "all", "effort": "low"}}` |
-| Kimi official + reasoning effort high | `--thinking --think-mode kimi --thinking-effort high` | `{"thinking": {"type": "enabled", "keep": "all", "effort": "high"}}` |
-| Kimi official + reasoning effort max | `--thinking --think-mode kimi --thinking-effort max` | `{"thinking": {"type": "enabled", "keep": "all", "effort": "max"}}` |
-| Open-source framework + thinking off | `--think-mode opensource` | `{"chat_template_kwargs": {"thinking": false}}` |
-| Open-source framework + thinking on | `--thinking --think-mode opensource` | `{"chat_template_kwargs": {"thinking": true}}` |
-| Open-source framework + reasoning effort low | `--thinking --think-mode opensource --thinking-effort low` | `{"chat_template_kwargs": {"thinking": true, "preserve_thinking": true, "thinking_effort": "low"}}` |
-| Open-source framework + reasoning effort high | `--thinking --think-mode opensource --thinking-effort high` | `{"chat_template_kwargs": {"thinking": true, "preserve_thinking": true, "thinking_effort": "high"}}` |
-| Open-source framework + reasoning effort max | `--thinking --think-mode opensource --thinking-effort max` | `{"chat_template_kwargs": {"thinking": true, "preserve_thinking": true, "thinking_effort": "max"}}` |
+| Kimi official K2 series + thinking off | `--think-mode kimi` | `{"thinking": {"type": "disabled"}}` |
+| Kimi official K2 series + thinking on | `--thinking --think-mode kimi` | `{"thinking": {"type": "enabled"}}` |
+| Kimi official K3 series + reasoning effort low | `--think-mode kimi --thinking-effort low` | `{"thinking": {"type": "enabled", "keep": "all", "effort": "low"}}` |
+| Kimi official K3 series + reasoning effort high | `--think-mode kimi --thinking-effort high` | `{"thinking": {"type": "enabled", "keep": "all", "effort": "high"}}` |
+| Kimi official K3 series + reasoning effort max | `--think-mode kimi --thinking-effort max` | `{"thinking": {"type": "enabled", "keep": "all", "effort": "max"}}` |
+| Kimi official K3 series + thinking off (effort `none`) | `--think-mode kimi --thinking-effort none` | `{"thinking": {"type": "disabled"}}` |
+| Open-source framework K2 series + thinking off | `--think-mode opensource` | `{"chat_template_kwargs": {"thinking": false}}` |
+| Open-source framework K2 series + thinking on | `--thinking --think-mode opensource` | `{"chat_template_kwargs": {"thinking": true}}` |
+| Open-source framework K3 series + reasoning effort low | `--think-mode opensource --thinking-effort low` | `{"reasoning_effort": "low"}` |
+| Open-source framework K3 series + reasoning effort high | `--think-mode opensource --thinking-effort high` | `{"reasoning_effort": "high"}` |
+| Open-source framework K3 series + reasoning effort max | `--think-mode opensource --thinking-effort max` | `{"reasoning_effort": "max"}` |
 
 ### Viewing Results
 
@@ -311,6 +420,14 @@ uv run inspect view
 
 # Logs are saved in the logs/ directory
 ```
+
+Each model call in the `.eval` log now includes a `request_context` object
+containing `client_request_id`, `request_id`, and `trace_id` (when returned by
+the upstream service). You can find it in:
+
+- `samples/<id>.json` → `metadata.request_context` (shown in the **Metadata** panel of `inspect view`)
+- `samples/<id>.json` → `output.metadata.request_context`
+- `samples/<id>.json` → `events[*].call.response._request_context`
 
 ### Resuming an Interrupted Benchmark
 
@@ -357,13 +474,16 @@ Non-network errors, such as model output format issues, are not retried and are 
 ├── eval.py              # Main evaluation CLI entrypoint
 ├── tests/params/        # Pre-flight parameter validation
 ├── tests/tool_call_json_schema/ # walle tool-call schema validation
+├── tests/toolcall_reject_cases/ # malformed tool-call request rejection validation
 ├── tests/prompt_tokens/ # usage.prompt_tokens accuracy validation
 ├── tests/k3_features/   # K3 feature contract validation
 ├── kimi_model.py        # Kimi Model API implementation
 ├── aime2025.py          # AIME 2025 evaluation task
 ├── mmmu_pro_vision.py   # MMMU Pro Vision evaluation task
 ├── ocr_bench.py         # OCRBench evaluation task
+├── kimi_toolcall.py     # Kimi Tool Call evaluation task
 ├── testdata/            # JSON schema and prompt-token test data
+├── toolcall_benchmark/  # Kimi Tool Call test data, with field definitions in the directory README
 ├── beam/                # BEAM 1M context data and scripts, see the directory README
 ├── logs/                # Evaluation logs
 └── pyproject.toml       # Project configuration

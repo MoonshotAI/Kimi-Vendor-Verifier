@@ -35,6 +35,10 @@ try:
 except ImportError:
     sys.exit("openai package is required: pip install openai")
 
+# Wire parameter for the output-token cap: some vendor endpoints reject
+# max_tokens and only accept the equivalent max_completion_tokens.
+TOKEN_PARAM = os.environ.get("KVV_TOKEN_PARAM", "max_tokens")
+
 QUESTION_TYPES = [
     "abstention",
     "contradiction_resolution",
@@ -243,7 +247,7 @@ async def call_judge(client: AsyncOpenAI, args, prompt: str) -> str:
         "model": args.judge_model,
         "messages": [{"role": "user", "content": prompt.strip()}],
         "temperature": args.judge_temperature,
-        "max_tokens": args.judge_max_tokens,
+        TOKEN_PARAM: args.judge_max_tokens,
     }
     if args.judge_reasoning_effort:
         kwargs["reasoning_effort"] = args.judge_reasoning_effort

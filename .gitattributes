@@ -1,3 +1,6 @@
 beam/data/* filter=lfs diff=lfs merge=lfs -text
+toolcall_benchmark/toolcall_thinking_samples.stable2.jsonl filter=lfs diff=lfs merge=lfs -text
+testdata/toolcall_reject_cases/rejected_case.jsonl filter=lfs diff=lfs merge=lfs -text
 testdata/prompt_token_cases/*.jsonl filter=lfs diff=lfs merge=lfs -text
 testdata/prompt_token_cases/images/*.png filter=lfs diff=lfs merge=lfs -text
+testdata/walle_validator_cases/go_validator_cases.jsonl filter=lfs diff=lfs merge=lfs -text

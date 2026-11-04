@@ -11,6 +11,7 @@ from inspect_ai.model import (
     ContentReasoning,
     ContentText,
 )
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -375,6 +376,7 @@ def record_to_sample(record: dict) -> Sample:
             "repeat_run_truncated": repeat_run_truncated,
             "repeat_run_incomplete_tool_response": repeat_run_incomplete_tool_response,
             "target_assistant_msg": target_assistant_msg,
+            "forbidden_arguments": record.get("forbidden_arguments"),
         },
     )
 
@@ -401,8 +403,14 @@ def _tool_call_sequence_errors(messages: list) -> list[str]:
     return errors
 
 
-def load_dataset(path: str) -> list[Sample]:
-    """Load dataset from JSONL with custom record-to-sample mapping."""
+def load_dataset(
+    path: str,
+    sample_id: str | None = None,
+) -> list[Sample]:
+    """Load dataset from JSONL with custom record-to-sample mapping.
+
+    If sample_id is provided, only that record is loaded.
+    """
     samples: list[Sample] = []
 
     with open(path, "r", encoding="utf-8") as f:
@@ -411,7 +419,33 @@ def load_dataset(path: str) -> list[Sample]:
             if not line:
                 continue
             record = json.loads(line)
+            if sample_id is not None and record.get("id") != sample_id:
+                continue
             sample = record_to_sample(record)
             samples.append(sample)
+            if sample_id is not None:
+                break
     return samples
+
+
+def _copy_request_context(state: TaskState) -> None:
+    """Copy request_context from model output metadata into sample metadata."""
+    output = getattr(state, "output", None)
+    if output is None or not output.metadata:
+        return
+    context = output.metadata.get("request_context")
+    if context:
+        state.metadata["request_context"] = context
+
+
+@solver
+def with_request_context(inner: Solver) -> Solver:
+    """Wrap a solver so the final request_context lands in sample metadata."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await inner(state, generate)
+        _copy_request_context(state)
+        return state
+
+    return solve
 

@@ -301,9 +301,12 @@ RF_WITH_JSON = r"""{
 }"""
 
 
-def test_response_format_prompt_tokens_without(hclient: httpx.Client, model: str):
+def test_response_format_prompt_tokens_without(hclient: httpx.Client, model: str, require_platform_server):
     """Prompt token count without response_format matches the tokenism
-    groundtruth."""
+    groundtruth. Skipped for open-source servers: vLLM's prompt accounting
+    differs systematically from the platform tokenism (generation-prefix
+    channel marker +3, default tool_choice message, ignored `thinking`
+    field), so the exact constants don't transfer."""
     expected_prompt_tokens = 36
 
     response = hclient.post(
@@ -320,10 +323,14 @@ def test_response_format_prompt_tokens_without(hclient: httpx.Client, model: str
 
 
 @pytest.mark.flaky(reruns=2, reruns_delay=1)
-def test_response_format_with(hclient: httpx.Client, model: str):
-    """With response_format: prompt token count matches the tokenism groundtruth,
-    and the json_schema(capital: bool) output is compact JSON with no literal
-    newline (\\n) or tab (\\t) characters. Retried a few times."""
+def test_response_format_with(hclient: httpx.Client, model: str, require_platform_server):
+    """With response_format: prompt token count matches the tokenism
+    groundtruth, and the json_schema(capital: bool) output is compact JSON
+    with no literal newline (\\n) or tab (\\t) characters. Retried a few
+    times. Skipped for open-source servers: the payload embeds the private
+    `thinking` field (ignored there) and vLLM's prompt accounting differs
+    systematically from the platform tokenism, so neither the token count
+    nor the exact payload contract transfers."""
     expected_prompt_tokens = 119
 
     response = hclient.post(

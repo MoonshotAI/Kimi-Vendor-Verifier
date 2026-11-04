@@ -15,7 +15,8 @@ import pytest
 # official deployments use this list via the `is_vendor` fixture.
 MOONSHOT_APIS = [
     "https://api.moonshot.cn/v1",
-    "https://api.moonshot.ai/v1"
+    "https://api.msh.team/v1",
+    "https://api-intl.msh.team/v1",
 ]
 
 
@@ -37,7 +38,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     parser.addoption(
         "--think-mode",
-        choices=["kimi", "opensource", "none"],
+        choices=["kimi", "opensource"],
         default=os.environ.get("THINK_MODE", "kimi"),
         help="Thinking parameter format (default: THINK_MODE or kimi)",
     )
@@ -82,6 +83,8 @@ def key(pytestconfig: pytest.Config) -> str:
 
 @pytest.fixture(scope="session")
 def think_mode(pytestconfig: pytest.Config) -> str:
+    """Effective thinking-parameter style: 'kimi', 'opensource'.
+    """
     return pytestconfig.getoption("think_mode")
 
 
@@ -107,6 +110,7 @@ def thinking_flag(pytestconfig: pytest.Config) -> bool:
 
 @pytest.fixture(scope="session")
 def max_tokens_for_tool_schema(pytestconfig: pytest.Config) -> int:
+    #max_tokens equals max_completion_tokens
     return pytestconfig.getoption("max_tokens")
 
 

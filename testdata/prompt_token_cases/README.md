@@ -36,9 +36,11 @@ One JSON object per line in `cases.jsonl` or `vision_cases.jsonl`:
 
 `vision_cases.jsonl` covers requests containing one through ten images at
 different landscape, portrait, and square dimensions, including text both
-before and after an image content part. The repository keeps a single source
-image at `images/vision_fixture.png`. Case requests refer to it with a URL such
-as:
+before and after an image content part. It also covers a 3584x3584 image at
+the 16384-media-token boundary (16421 total prompt tokens), calculated with
+the tokenism MoonViT algorithm using a 65536 input-patch limit. The repository
+keeps a single source image at `images/vision_fixture.png`. Case requests refer
+to it with a URL such as:
 
 ```text
 fixture://vision_fixture.png?width=1536&height=1024
@@ -77,6 +79,36 @@ these rules:
   `reasoning_content` inside messages is kept as-is.
 - Cases whose transformed request is identical to another migrated case are
   deduplicated.
+
+## Encoder parity-gap cases
+
+`k3_tool_choice_none_no_tools`, `k3_vision_tool_message_image_content`,
+`k3_tool_result_stale_name_rewritten`, and
+`k3_tool_result_matches_recent_turn` were authored against the K3 reference
+encoder (`encoding_k3.py` on the Kimi-K3 Hugging Face repo) to pin
+byte-level behaviours a re-implementation may diverge on: the unconditional
+`tool_choice=none` control message, image content parts in tool messages, and
+the observable branches of `normalize_xtml_tool_result_messages` (the
+tool-`name` rewrite after an id match, and matching against the most recent
+assistant turn). Note that the re-sort itself is invisible to token counts
+(segments are encoded independently, so swapping two tool messages never
+changes the total — `k3_tool_message_reordered` and
+`k3_tool_parallel_reordered` therefore cannot detect a missing re-sort).
+
+Their `expected_prompt_tokens` are computed locally: requests are rendered
+with `build_chat_segments` and encoded with the K3 tokenizer (`total - 3`
+pending channel-seed tokens, same convention as the playground cases); the
+pipeline reproduces every pre-existing case's constant exactly, and these
+cases pass against the 1P `kimi-k3` deployment. The vision case reuses the
+1536x1024 image, whose per-image media expansion (2045 tokens) is derived
+from the existing vision cases.
+
+Several sibling probes were dropped because the 1P API does not admit them:
+it rejects empty system messages, tool messages without a known
+`tool_call_id` (so the unmatched-run and `id`-field-fallback branches are
+unreachable over the wire), and its own rendering diverges from the HF
+reference on system-message `name` attributes and on `strict` / caller-defined
+tool-declaration fields (the 1P drops both).
 
 ## Playground cases
 

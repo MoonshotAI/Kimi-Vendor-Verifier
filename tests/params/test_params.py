@@ -2,17 +2,18 @@
 
 Verifies that immutable parameters use their default values and that wrong
 values are rejected by the vendor API. Covers both thinking and non-thinking
-modes.
+modes.Only test with think-mode kimi, not opensource
 """
 
 from __future__ import annotations
-
+import os
 from dataclasses import dataclass
 from typing import Any
 
 import openai
 import pytest
 
+from tests.helper import get_thinking_extra_body
 
 @dataclass
 class ParamSpec:
@@ -39,14 +40,6 @@ PARAM_IDS = [
 ]
 
 
-def _get_thinking_extra_body(thinking: bool, think_mode: str) -> dict[str, Any]:
-    if think_mode == "none":
-        return {}
-    if think_mode == "opensource":
-        return {"chat_template_kwargs": {"thinking": thinking}}
-    return {"thinking": {"type": "enabled" if thinking else "disabled"}}
-
-
 def _make_request(
     client: openai.Client,
     model: str,
@@ -57,7 +50,7 @@ def _make_request(
     kwargs: dict[str, Any] = {
         "model": model,
         "messages": [{"role": "user", "content": "Say 'OK' and nothing else."}],
-        "extra_body": _get_thinking_extra_body(thinking, think_mode),
+        "extra_body": get_thinking_extra_body(thinking, think_mode, effort="max"),
     }
     if extra_params:
         kwargs.update(extra_params)
@@ -117,3 +110,41 @@ def test_wrong_param_rejected(
     assert not success, (
         f"{param.name}={param.wrong_value} should be rejected, but request succeeded: {msg}"
     )
+
+
+# ---------------------------------------------------------------------------
+# tool name length: names up to 128 chars (the limit enforced by the official
+# api.msh.team gateway) must be accepted and callable. This is model-agnostic
+# and applies to k2.6/k3 alike.
+# ---------------------------------------------------------------------------
+
+
+def _long_named_tool(name: str) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": "Get the weather of a city.",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+        },
+    }
+
+
+def test_tool_name_128_chars_accepted(client: openai.Client, model: str) -> None:
+    """A tool name at the 128-char maximum is accepted and callable."""
+    name = "tool" + "a" * 124  # exactly 128 chars
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": "what is the weather in beijing?"}],
+        tools=[_long_named_tool(name)],
+        tool_choice="required",
+    )
+    choice = completion.choices[0]
+    assert choice.finish_reason == "tool_calls", choice
+    tool_calls = choice.message.tool_calls or []
+    assert tool_calls, f"expected a tool_call, got: {choice.message}"
+    assert tool_calls[0].function.name == name

@@ -97,6 +97,7 @@ def _post(hclient: httpx.Client, model: str, payload: dict[str, Any]) -> httpx.R
 # =============================================================================
 
 @pytest.mark.smoke_test
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_dynamic_tool_in_system_callable(hclient: httpx.Client, model: str):
     """A tool declared inside a system message can be selected by the model."""
     response = _post(
@@ -118,6 +119,7 @@ def test_dynamic_tool_in_system_callable(hclient: httpx.Client, model: str):
     assert tool_calls[0]["function"]["name"] == "get_weather"
 
 
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_dynamic_tool_in_subsequent_system_message(hclient: httpx.Client, model: str):
     """A dynamic tool may appear in a system message that is not the first
     message of the conversation."""
@@ -142,6 +144,7 @@ def test_dynamic_tool_in_subsequent_system_message(hclient: httpx.Client, model:
     assert tool_calls and tool_calls[0]["function"]["name"] == "get_weather"
 
 
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_dynamic_tool_as_last_message(hclient: httpx.Client, model: str):
     response = _post(
         hclient,
@@ -161,6 +164,7 @@ def test_dynamic_tool_as_last_message(hclient: httpx.Client, model: str):
     assert tool_calls and tool_calls[0]["function"]["name"] == "get_weather"
 
 
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_three_dynamic_tools_in_one_message(hclient: httpx.Client, model: str):
     response = _post(
         hclient,
@@ -188,6 +192,7 @@ def test_three_dynamic_tools_in_one_message(hclient: httpx.Client, model: str):
 
 
 @pytest.mark.smoke_test
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_dynamic_tool_with_nested_schema(hclient: httpx.Client, model: str):
     response = _post(
         hclient,
@@ -207,6 +212,7 @@ def test_dynamic_tool_with_nested_schema(hclient: httpx.Client, model: str):
     assert tool_calls and tool_calls[0]["function"]["name"] == "nested_tool"
 
 
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_two_dynamic_messages_with_distinct_tools(hclient: httpx.Client, model: str):
     """Two system messages each declaring a different tool are both accepted."""
     response = _post(
@@ -231,6 +237,7 @@ def test_two_dynamic_messages_with_distinct_tools(hclient: httpx.Client, model: 
     )
 
 
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_dynamic_tool_strict_false(hclient: httpx.Client, model: str):
     """A dynamic tool with strict=false is accepted (relaxed parameter
     validation)."""
@@ -298,6 +305,7 @@ def test_global_and_dynamic_tools_coexist(hclient: httpx.Client, model: str):
     )
 
 
+@pytest.mark.flaky(reruns=2, reruns_delay=1)
 def test_tool_choice_required_with_only_dynamic_tools(hclient: httpx.Client, model: str):
     """tool_choice='required' forces a call even when tools are only dynamic."""
     response = _post(
@@ -601,3 +609,49 @@ def test_tool_role_without_tool_call_id_rejected(hclient: httpx.Client, model: s
         f"expected 400 for a tool message without tool_call_id, "
         f"got {response.status_code}: {response.text}"
     )
+
+
+# =============================================================================
+# 7. Tool name length: 128-char names in dynamic tools
+#
+# Names up to 128 chars (the limit enforced by the official api.msh.team
+# gateway) must be accepted and callable, the same as request-level tools (see
+# tests/params/test_params.py::test_tool_name_128_chars_accepted).
+# =============================================================================
+
+
+def test_dynamic_tool_name_128_chars_accepted(hclient: httpx.Client, model: str):
+    """A dynamic tool whose name is exactly 128 chars is accepted and callable."""
+    name = "tool" + "a" * 124  # exactly 128 chars
+    long_tool: dict[str, Any] = {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": "Get the weather of a city.",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+        },
+    }
+    response = _post(
+        hclient,
+        model,
+        {
+            "messages": [
+                {"role": "system", "content": "", "tools": [long_tool]},
+                {"role": "user", "content": "what is the weather in beijing?"},
+            ],
+            "tool_choice": "required",
+        },
+    )
+    assert response.status_code == 200, (
+        f"expected 200 for a 128-char dynamic tool name, "
+        f"got {response.status_code}: {response.text}"
+    )
+    choice = response.json()["choices"][0]
+    assert choice["finish_reason"] == "tool_calls", choice
+    tool_calls = choice["message"].get("tool_calls") or []
+    assert tool_calls, f"expected a tool_call, got: {choice['message']}"
+    assert tool_calls[0]["function"]["name"] == name

@@ -19,6 +19,8 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError, ValidationError
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 
+from tests.helper import TOKEN_PARAM, get_thinking_extra_body
+
 
 DEFAULT_CASE_DIR = (
     Path(__file__).parents[2]
@@ -176,6 +178,37 @@ def rewrite_root_refs(obj: Any, target_ref: str) -> Any:
     return obj
 
 
+def rewrite_absolute_refs(obj: Any, prefix: str) -> Any:
+    """Rewrite document-absolute $ref pointers for a schema nested at *prefix*.
+
+    JSON Pointers in ``$ref`` always resolve from the document root (RFC 6901),
+    so nesting a case schema under ``properties.value`` silently turns internal
+    refs like ``#/properties/a`` into dangling pointers -- the validator then
+    rejects them with "references must start with #/$defs/" (walle's hoisting
+    only rescues refs that actually resolve). Rewrite them to
+    ``#/properties/value/...`` so they keep pointing at the same subschema.
+    Root self-references (``#``) are handled by rewrite_root_refs, and
+    ``#/$defs/...`` refs stay valid because the case's ``$defs`` are hoisted to
+    the wrapper root.
+    """
+    if isinstance(obj, dict):
+        rewritten: dict[str, Any] = {}
+        for key, value in obj.items():
+            if (
+                key == "$ref"
+                and isinstance(value, str)
+                and value.startswith("#/")
+                and not value.startswith("#/$defs/")
+            ):
+                rewritten[key] = f"{prefix}{value[1:]}"
+            else:
+                rewritten[key] = rewrite_absolute_refs(value, prefix)
+        return rewritten
+    if isinstance(obj, list):
+        return [rewrite_absolute_refs(item, prefix) for item in obj]
+    return obj
+
+
 def wrap_schema_as_parameter_property(schema: Any) -> Any:
     """Use the case schema as one tool argument property schema."""
     if not isinstance(schema, dict):
@@ -201,8 +234,9 @@ def wrap_schema_as_parameter_property(schema: Any) -> Any:
         wrapped["properties"] = {"value": {"$ref": target_ref}}
         wrapped["$defs"] = defs
     else:
+        value_schema = {k: v for k, v in schema.items() if k not in ("$defs", "$id")}
         wrapped["properties"] = {
-            "value": {k: v for k, v in schema.items() if k not in ("$defs", "$id")}
+            "value": rewrite_absolute_refs(value_schema, "#/properties/value")
         }
         if "$defs" in schema:
             wrapped["$defs"] = schema["$defs"]
@@ -282,17 +316,23 @@ def has_recursive_ref_without_termination(schema: Any) -> bool:
 def has_exotic_property_keys(schema: Any) -> bool:
     """Detect property keys known to confuse the decoder.
 
-    Leading/trailing whitespace and empty-string keys are stripped by the
-    decoder.  Literal escape sequences (e.g. ``\\n``, ``\\t``) in keys are
-    also mishandled – walle test data double-escapes them while the decoder
-    emits actual control chars, so the keys never match.
+    Leading/trailing whitespace keys are stripped by the decoder.  Literal
+    escape sequences (e.g. ``\\n``, ``\\t``) in keys are also mishandled –
+    walle test data double-escapes them while the decoder emits actual
+    control chars, so the keys never match.
+
+    Empty-string keys are legal per walle e5c4ecf, so they no longer skip a
+    case on their own; a case is only skipped when the empty-string key is
+    also *required*, because no model reliably emits an empty-string
+    property (argument generation is a model behavior, not schema validity).
     """
     if not isinstance(schema, dict):
         return False
+    required = schema.get("required") or []
     for key in schema.get("properties", {}).keys():
         if key != key.strip():
             return True
-        if key == "":
+        if key == "" and "" in required:
             return True
         if any(seq in key for seq in (r"\n", r"\t", r"\r", r"\b", r"\f")):
             return True
@@ -537,7 +577,7 @@ def send_tool_schema(
     *,
     stream: bool = False,
 ) -> ToolResponse:
-    extra_body = get_thinking_extra_body(thinking, think_mode)
+    extra_body = get_thinking_extra_body(thinking, think_mode, effort="max")
     request: dict[str, Any] = {
         "model": model,
         "messages": [
@@ -575,7 +615,7 @@ def send_tool_schema(
             }
         ],
         "tool_choice": DEFAULT_TOOL_CHOICE,
-        "max_tokens": max_tokens,
+        TOKEN_PARAM: max_tokens,
     }
     if stream:
         request["stream"] = True
@@ -635,14 +675,6 @@ def validate_arguments(schema: Any, arguments: str | None) -> tuple[bool, str]:
         )
 
     return True, f"tool call arguments matched schema; arguments={truncate(arguments)}"
-
-
-def get_thinking_extra_body(thinking: bool, think_mode: str) -> dict[str, Any]:
-    if think_mode == "none":
-        return {}
-    if think_mode == "opensource":
-        return {"chat_template_kwargs": {"thinking": thinking}}
-    return {"thinking": {"type": "enabled" if thinking else "disabled"}}
 
 
 def evaluate_case(

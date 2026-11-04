@@ -35,15 +35,42 @@ def _report_path(config: pytest.Config) -> Path:
     return Path(config.getoption("tool_json_report")).resolve()
 
 
+_GO_CASE_SUITE = "go_validator_cases"
+_GO_CASE_SELECTION_REASON = "go_validator"
+
+
 def _is_tool_schema_item(item: pytest.Item) -> bool:
-    return "case_info" in getattr(item, "fixturenames", [])
+    fixturenames = getattr(item, "fixturenames", [])
+    return "case_info" in fixturenames or "go_case" in fixturenames
 
 
-def _item_case_info(item: pytest.Item) -> tuple[Any, Any, str, str] | None:
+def _record_fields(item: pytest.Item) -> dict[str, Any] | None:
     callspec = getattr(item, "callspec", None)
     if callspec is None:
         return None
-    return callspec.params.get("case_info")
+    if "case_info" in callspec.params:
+        case, schema, reason, mode = callspec.params["case_info"]
+        return {
+            "suite": case.suite,
+            "line": case.line,
+            "mode": mode,
+            "selection_reason": reason,
+            "schema": schema,
+        }
+    if "go_case" in callspec.params:
+        # Supplemental go_validator_cases.jsonl entries: no selection
+        # pipeline; `line` is the JSONL line number, `mode` comes from
+        # the test's own parametrization.
+        go_case = callspec.params["go_case"]
+        return {
+            "suite": _GO_CASE_SUITE,
+            "line": go_case["line"],
+            "mode": callspec.params.get("mode", "non-stream"),
+            "selection_reason": _GO_CASE_SELECTION_REASON,
+            "schema": go_case["schema"],
+            "expected": "accepted" if go_case["accepted"] else "rejected",
+        }
+    return None
 
 
 def _worker_results_path(report_path: Path) -> Path:
@@ -68,11 +95,10 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
     if call.when != "call" or not _is_tool_schema_item(item):
         return
 
-    params = _item_case_info(item)
-    if params is None:
+    fields = _record_fields(item)
+    if fields is None:
         return
 
-    case, schema, reason, mode = params
     report: pytest.TestReport = outcome.get_result()
     message = ""
     if report.outcome != "passed" and report.longrepr is not None:
@@ -82,11 +108,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
         message = text
 
     record = {
-        "suite": case.suite,
-        "line": case.line,
-        "mode": mode,
-        "selection_reason": reason,
-        "schema": schema,
+        **fields,
         "status": report.outcome,
         "message": message,
     }

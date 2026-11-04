@@ -7,5 +7,7 @@ valid.jsonl
   - Append a line to add a passing case.
 
 invalid.jsonl
-  - Omitted from this KVV snapshot for now.
-  - The CI validator only exercises valid schemas and checks whether response_format rejects them with HTTP 400.
+  - One JSON object per line:
+    {"schema":"<exact schema text>","expect":"<substring of expected error>","unmarshal":false}
+  - schema is a JSON string value (escaped), so the document under test need not be valid JSON.
+  - unmarshal: true if the implementation must return an UnmarshalError.

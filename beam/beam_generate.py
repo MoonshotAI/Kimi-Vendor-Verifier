@@ -27,6 +27,10 @@ import os
 import sys
 import time
 
+# Wire parameter for the output-token cap: some vendor endpoints reject
+# max_tokens and only accept the equivalent max_completion_tokens.
+TOKEN_PARAM = os.environ.get("KVV_TOKEN_PARAM", "max_tokens")
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 CHATS_FILE = os.path.join(DATA_DIR, "beam_1m_chats.jsonl.gz")
 QUESTIONS_FILE = os.path.join(DATA_DIR, "beam_1m_questions.jsonl")
@@ -35,7 +39,7 @@ QUESTIONS_FILE = os.path.join(DATA_DIR, "beam_1m_questions.jsonl")
 # used for truncation by default, no external files needed.
 BUILTIN_TOKENIZER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tokenizer")
 
-# Official BEAM probing-question prefix (no system prompt, flat history).
+# Official BEAM probing-question prefix (no system prompt).
 PROBING_TEMPLATE = "NOTE: Only provide the answer without any explanations. \nQuestion: {question}"
 
 # Reserve budget: chat-template overhead + probing question tokens.
@@ -83,14 +87,71 @@ def truncate_messages(messages: list, max_content_tokens: int, tokenizer) -> lis
     return truncated
 
 
-def build_request_messages(doc: dict, tokenizer, max_content_tokens: int) -> list:
+def render_plain_text(messages: list, probing_text: str) -> str:
+    context = "\n\n".join(
+        f"{message['role'].capitalize()}: {message['content']}"
+        for message in messages
+    )
+    return f"{context}\n\nUser: {probing_text}"
+
+
+def truncate_plain_text_messages(messages: list, probing_text: str,
+                                 max_content_tokens: int, tokenizer) -> list:
+    """Drop history until the complete plain-text prompt fits the budget."""
+    content = render_plain_text(messages, probing_text)
+    total = len(tokenizer.encode(content))
+    if total <= max_content_tokens:
+        return messages
+
+    rendered = [
+        f"{message['role'].capitalize()}: {message['content']}"
+        for message in messages
+    ]
+    msg_tokens = [len(tokenizer.encode(message)) for message in rendered]
+    separator_tokens = len(tokenizer.encode("\n\n"))
+    start_idx = 0
+    while start_idx < len(messages) and total > max_content_tokens:
+        total -= msg_tokens[start_idx]
+        if len(messages) - start_idx > 1:
+            total -= separator_tokens
+        start_idx += 1
+    while start_idx < len(messages) and messages[start_idx]["role"] != "user":
+        start_idx += 1
+
+    truncated = messages[start_idx:]
+    content = render_plain_text(truncated, probing_text)
+    content_tokens = len(tokenizer.encode(content))
+    while content_tokens > max_content_tokens and truncated:
+        truncated = truncated[1:]
+        while truncated and truncated[0]["role"] != "user":
+            truncated = truncated[1:]
+        content = render_plain_text(truncated, probing_text)
+        content_tokens = len(tokenizer.encode(content))
+    if content_tokens > max_content_tokens:
+        raise ValueError(
+            f"plain-text prompt with no history is {content_tokens} tokens, "
+            f"exceeding the budget {max_content_tokens}"
+        )
+
+    print(f"  truncated plain-text chat from {len(messages)} to {len(truncated)} "
+          f"messages ({content_tokens} tokens, budget {max_content_tokens})",
+          flush=True)
+    return truncated
+
+
+def build_request_messages(doc: dict, tokenizer, max_content_tokens: int,
+                           plain_text: bool = False) -> list:
     messages = doc["messages"]
+    probing_text = PROBING_TEMPLATE.format(question=doc["question"])
+    if plain_text:
+        if tokenizer is not None:
+            messages = truncate_plain_text_messages(
+                messages, probing_text, max_content_tokens, tokenizer,
+            )
+        return [{"role": "user", "content": render_plain_text(messages, probing_text)}]
     if tokenizer is not None:
         messages = truncate_messages(messages, max_content_tokens, tokenizer)
-    return messages + [{
-        "role": "user",
-        "content": PROBING_TEMPLATE.format(question=doc["question"]),
-    }]
+    return messages + [{"role": "user", "content": probing_text}]
 
 
 def doc_key(doc: dict) -> str:
@@ -111,13 +172,15 @@ def load_done_keys(output_path: str) -> set:
 
 
 async def generate_one(client, doc: dict, args, extra_body: dict) -> dict:
-    messages = build_request_messages(doc, args._tokenizer, args._max_content_tokens)
+    messages = build_request_messages(
+        doc, args._tokenizer, args._max_content_tokens, args.plain_text,
+    )
     payload = {
         "model": args.model,
         "messages": messages,
         "temperature": args.temperature,
         "top_p": args.top_p,
-        "max_tokens": args.max_tokens,
+        TOKEN_PARAM: args.max_tokens,
     }
 
     row = {
@@ -129,6 +192,7 @@ async def generate_one(client, doc: dict, args, extra_body: dict) -> dict:
         "rubric": doc["rubric"],
         "response": "",
         "finish_reason": None,
+        "completion_id": None,
         "prompt_tokens": None,
         "completion_tokens": None,
         "error": None,
@@ -143,6 +207,7 @@ async def generate_one(client, doc: dict, args, extra_body: dict) -> dict:
             choice = completion.choices[0] if completion.choices else None
             row["response"] = (choice.message.content or "") if choice else ""
             row["finish_reason"] = choice.finish_reason if choice else None
+            row["completion_id"] = completion.id
             if completion.usage:
                 row["prompt_tokens"] = completion.usage.prompt_tokens
                 row["completion_tokens"] = completion.usage.completion_tokens
@@ -173,7 +238,9 @@ async def run(args) -> None:
 
     if args.dry_run:
         for d in todo[:3]:
-            msgs = build_request_messages(d, args._tokenizer, args._max_content_tokens)
+            msgs = build_request_messages(
+                d, args._tokenizer, args._max_content_tokens, args.plain_text,
+            )
             n_chars = sum(len(m["content"]) for m in msgs)
             print(f"  [{doc_key(d)}] {len(msgs)} messages, {n_chars} chars, "
                   f"last: {msgs[-1]['content'][:80]!r}", flush=True)
@@ -227,7 +294,7 @@ def main() -> None:
                         help="per-request timeout seconds (1M prompts are slow)")
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top-p", type=float, default=0.95)
-    parser.add_argument("--max-tokens", type=int, default=32768)
+    parser.add_argument("--max-tokens", type=int, default=65536)
     parser.add_argument("--thinking-json", default="",
                         help='extra request body JSON, e.g. '
                              "'{\"thinking\":{\"type\":\"enabled\",\"keep\":\"all\",\"effort\":\"max\"}}'")
@@ -239,6 +306,9 @@ def main() -> None:
     parser.add_argument("--max-context-tokens", type=int, default=1048576,
                         help="model context size; content budget = "
                              "max-context-tokens - max-tokens - 5000")
+    parser.add_argument("--plain-text", action="store_true",
+                        help="flatten history and probing question into one "
+                             "plain-text user message")
     parser.add_argument("--limit", type=int, default=0, help="only run first N questions")
     parser.add_argument("--dry-run", action="store_true",
                         help="build messages and print stats without sending requests")

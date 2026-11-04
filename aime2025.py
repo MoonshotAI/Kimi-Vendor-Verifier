@@ -16,6 +16,8 @@ from inspect_ai.scorer import (
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from math_verify import parse, verify
 
+from utils import with_request_context
+
 DATASET_PATH = "math-ai/aime25"
 
 def verify_answer(prediction: str, target: str) -> tuple[int | None, bool]:
@@ -71,6 +73,6 @@ def aime2025() -> Task:
                 target=str(r["answer"]),
             ),
         ),
-        solver=aime2025_solver(),
+        solver=with_request_context(aime2025_solver()),
         scorer=aime2025_scorer(),
     )

@@ -1,3 +1,4 @@
+
 """Stream-mode parametrization for the k3_features API contract tests.
 
 Every test in this directory that uses the `client` (openai SDK) or `hclient`
@@ -12,10 +13,21 @@ Every test in this directory that uses the `client` (openai SDK) or `hclient`
 
 The wrapping is done here (not in the test files) so the test logic stays
 identical between the two modes.
+
+Shared helpers for the k3_features API contract tests.
+
+The suite runs against both the Kimi official API and open-source
+deployments (vLLM/SGLang/KTransformers), selected with ``--think-mode``:
+
+    kimi       Kimi official API (default): private `thinking` object param,
+               platform-side (walle/MFJS) validations, tokenism groundtruth.
+    opensource Open-source servers: thinking effort goes through the standard
+               `reasoning_effort` param; platform-side validations are the
+               deployer's own layer and are skipped here.
+
 """
 
 from __future__ import annotations
-
 import json as jsonlib
 from typing import Any, Iterator
 
@@ -304,3 +316,60 @@ def hclient(pytestconfig: pytest.Config, key: str, _stream: bool) -> Any:
     else:
         yield http_client
     http_client.close()
+
+
+@pytest.fixture
+def require_platform_server(think_mode: str) -> None:
+    """Skip tests for platform-side behavior open-source servers don't have.
+
+    Covers walle/MFJS request validation (tool name/shape/duplicate checks,
+    role constraints) and tokenism groundtruth constants -- both belong to
+    the Kimi platform layer, not to a bare open-source deployment.
+    """
+    if think_mode == "opensource":
+        pytest.skip(
+            "platform-side behavior (walle validation / tokenism groundtruth), "
+            "not implemented by open-source servers"
+        )
+
+
+# Negative request-validation tests in test_dynamic_tools.py. The 400s they
+# assert are produced by the Kimi platform's walle/MFJS layer; open-source
+# servers (vLLM) intentionally don't re-implement them, so they are skipped
+# for open-source server types. Listed explicitly (instead of a name
+# pattern) so a renamed test fails loudly instead of silently losing
+# coverage.
+_PLATFORM_VALIDATION_TESTS = {
+    # role constraints
+    "test_dynamic_tool_in_user_message_rejected",
+    "test_dynamic_tool_in_assistant_message_rejected",
+    "test_content_and_dynamic_tools_nonempty_rejected",
+    # tool definition validation
+    "test_dynamic_tool_missing_required_field_rejected",
+    "test_invalid_dynamic_tool_name_rejected",
+    "test_unsupported_tool_type_rejected",
+    "test_mixed_valid_and_bogus_type_tools_rejected",
+    "test_dynamic_tools_not_array_rejected",
+    "test_dynamic_tools_item_not_object_rejected",
+    # duplicate tool names
+    "test_duplicate_dynamic_tool_names_rejected",
+    "test_duplicate_tool_names_across_dynamic_messages_rejected",
+    "test_duplicate_tool_name_between_global_and_dynamic_rejected",
+    # tool role without tool_call_id
+    "test_tool_role_without_tool_call_id_rejected",
+}
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
+    if config.getoption("think_mode") != "opensource":
+        return
+    skip = pytest.mark.skip(
+        reason="platform-side (walle/MFJS) validation, not implemented by "
+        "open-source servers"
+    )
+    for item in items:
+        if "test_dynamic_tools" not in item.nodeid:
+            continue
+        if item.name.split("[")[0] in _PLATFORM_VALIDATION_TESTS:
+            item.add_marker(skip)
+

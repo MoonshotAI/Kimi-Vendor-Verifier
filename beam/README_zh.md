@@ -44,6 +44,16 @@ python beam_generate.py \
     --output answers.jsonl
 ```
 
+纯文本对话历史示例：
+
+```bash
+python beam_generate.py \
+    --model your-model-id \
+    --base-url https://your-endpoint/v1 \
+    --plain-text \
+    --output answers_plain_text.jsonl
+```
+
 ### 生成参数
 
 | 参数 | 默认值 | 说明 |
@@ -53,10 +63,11 @@ python beam_generate.py \
 | `--api-key` | 环境变量 `BEAM_API_KEY` | API key |
 | `--temperature` | 1.0 | 采样 temperature |
 | `--top-p` | 0.95 | nucleus sampling 参数 |
-| `--max-tokens` | 32768 | 最大输出 token 数 |
+| `--max-tokens` | 65536 | 最大输出 token 数 |
 | `--thinking-json` | （空） | 额外请求 body JSON，例如 thinking 配置 |
 | `--tokenizer` | bundled Kimi-K2.6 | 用于截断的 HF id 或本地 tokenizer 路径；为空表示不截断 |
 | `--max-context-tokens` | 1048576 | 内容预算 = max-context - max-tokens - 5000 |
+| `--plain-text` | 关闭 | 将对话历史和 probing question 合并为一条纯文本 user message |
 | `--concurrency` | 16 | 并发请求数 |
 | `--max-retries` | 8 | 单个问题在记录空答案前的最大重试次数 |
 | `--limit` | 0（全部） | 只运行前 N 个问题，用于 smoke test |
@@ -64,9 +75,12 @@ python beam_generate.py \
 
 说明：
 
-- Prompt 是扁平化后的完整对话历史（无 system prompt），末尾追加 probing question，并使用官方前缀 `NOTE: Only provide the answer without any explanations.`。
-- 当内容超过 token 预算时，截断会从开头删除完整 message，并尽量保持 user/assistant 成对结构。默认使用随仓库提供的 Kimi-K2.6 tokenizer（`tokenizer/`，从官方模型发布版本中提取）；也可以通过 `--tokenizer` 指向其他 HF id 或本地路径，以匹配不同模型系列。
-- 脚本重启时会跳过输出文件中已经存在的问题。
+- 默认 Prompt 保留原来的多轮 messages 形式（无 system prompt），末尾追加 probing question，并使用官方前缀 `NOTE: Only provide the answer without any explanations.`。
+- 使用 `--plain-text` 时，历史会按 `User: ...`、`Assistant: ...` 段落以空行连接成纯文本，probing question 作为最后一个 `User:` 段落追加；整个 Prompt 只有一条 user message，不添加轮次编号或额外时间信息。
+- 多轮模式保留原来的正文截断逻辑。纯文本模式改为计算最终渲染后的完整 user content，包括角色标签、空行和 probing question；如果最终文本超预算，就从开头删除完整历史 message，直到最终文本满足预算，不再复用多轮正文截断。因此在接近上下文上限时，两种模式保留的历史量可以不同。
+- 默认使用随仓库提供的 Kimi-K2.6 tokenizer（`tokenizer/`，从官方模型发布版本中提取）；也可以通过 `--tokenizer` 指向其他 HF id 或本地路径，以匹配不同模型系列。
+- 脚本重启时会跳过输出文件中已经存在的问题。多轮与纯文本模式必须使用不同的输出文件，因为断点续跑的问题标识不包含 Prompt 模式。
+- CI 的 `beam_generate` job 和 `run_eval.sh beam_generate` 默认带 `--plain-text` 运行；设置 `BEAM_PLAIN_TEXT=false`（CI/CD 变量或 shell 环境变量）可切回多轮模式。
 - 如果某个问题所有重试都失败，脚本会写入一个空 response 和 `error` 字段，而不是中止整个运行；该问题会得 0 分。
 
 ## 2. 判分答案
@@ -118,7 +132,7 @@ python beam_judge.py \
 ## 输出格式
 
 `answers.jsonl`：每个问题一行：
-`{chat_id, question_type, question_index, question, gold_answer, rubric, response, finish_reason, prompt_tokens, completion_tokens, error}`
+`{chat_id, question_type, question_index, question, gold_answer, rubric, response, finish_reason, completion_id, prompt_tokens, completion_tokens, error}`
 
 `scores.jsonl`：每个问题一行：
 `{chat_id, question_type, question_index, score}`

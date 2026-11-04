@@ -54,6 +54,16 @@ python beam_generate.py \
     --output answers.jsonl
 ```
 
+Plain-text history example:
+
+```bash
+python beam_generate.py \
+    --model your-model-id \
+    --base-url https://your-endpoint/v1 \
+    --plain-text \
+    --output answers_plain_text.jsonl
+```
+
 ### Generation parameters
 
 | Parameter | Default | Description |
@@ -63,10 +73,11 @@ python beam_generate.py \
 | `--api-key` | env `BEAM_API_KEY` | API key |
 | `--temperature` | 1.0 | sampling temperature |
 | `--top-p` | 0.95 | nucleus sampling |
-| `--max-tokens` | 32768 | max output tokens |
+| `--max-tokens` | 65536 | max output tokens |
 | `--thinking-json` | (empty) | extra request body JSON, e.g. thinking config |
 | `--tokenizer` | bundled Kimi-K2.6 | HF id / local path for truncation; empty = no truncation |
 | `--max-context-tokens` | 1048576 | content budget = max-context − max-tokens − 5000 |
+| `--plain-text` | off | flatten history and probing question into one plain-text user message |
 | `--concurrency` | 16 | parallel requests |
 | `--max-retries` | 8 | per-question retries before recording empty answer |
 | `--limit` | 0 (all) | only run the first N questions (smoke test) |
@@ -74,15 +85,27 @@ python beam_generate.py \
 
 Notes:
 
-- The prompt is the full flattened conversation (no system prompt) with the
-  probing question appended, using the official prefix
+- By default, the prompt keeps the original multi-turn messages (no system
+  prompt), with the probing question appended using the official prefix
   `NOTE: Only provide the answer without any explanations.`
-- Truncation drops whole messages from the front (keeping user/assistant
-  pairs intact) when the content exceeds the token budget. By default the
-  bundled Kimi-K2.6 tokenizer (`tokenizer/`, extracted from the official
-  model release) is used; point `--tokenizer` at another HF id / local path
-  to match a different model family.
+- With `--plain-text`, history is rendered as `User: ...` and
+  `Assistant: ...` paragraphs separated by blank lines. The probing question
+  is appended as the final `User:` paragraph in the same single user message.
+  No turn numbers or extra timestamps are added.
+- Multi-turn mode keeps the original content-only truncation. Plain-text mode
+  instead measures the complete rendered user content, including role labels,
+  blank lines and the probing question, and drops whole history messages from
+  the front until that final text fits the budget. It does not reuse the
+  multi-turn content-only truncation; the two modes can retain different
+  amounts of history near the context limit.
+- By default the bundled Kimi-K2.6 tokenizer (`tokenizer/`, extracted from the
+  official model release) is used; point `--tokenizer` at another HF id /
+  local path to match a different model family.
 - Restarting the script skips questions already present in the output file.
+  Use different output files for multi-turn and plain-text runs because the
+  resume keys do not include the prompt mode.
+- `run_eval.sh beam_generate` pass `--plain-text` by default; set 
+  `BEAM_PLAIN_TEXT=false` (shell env) to run them in multi-turn mode.
 - A question that fails all retries is written with an empty response and an
   `error` field (it scores 0) instead of aborting the run.
 
@@ -141,7 +164,7 @@ python beam_judge.py \
 ## Output format
 
 `answers.jsonl` — one line per question:
-`{chat_id, question_type, question_index, question, gold_answer, rubric, response, finish_reason, prompt_tokens, completion_tokens, error}`
+`{chat_id, question_type, question_index, question, gold_answer, rubric, response, finish_reason, completion_id, prompt_tokens, completion_tokens, error}`
 
 `scores.jsonl` — one line per question:
 `{chat_id, question_type, question_index, score}`

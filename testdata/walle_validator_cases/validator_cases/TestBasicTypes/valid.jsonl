@@ -24,3 +24,4 @@
 {"enum":[0,1,-1,3.14,2.71828],"type":"number"}
 {"enum":[true,false],"type":"boolean"}
 {"enum":["value",null],"type":["string","null"]}
+{"properties":{"":{"type":"string"}},"type":"object"}

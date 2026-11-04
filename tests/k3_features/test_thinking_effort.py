@@ -25,7 +25,7 @@ variance; a reasoning-worthy prompt improves the signal.
 import openai
 import pytest
 
-
+from tests.helper import token_kwarg, get_thinking_extra_body
 
 MESSAGES = [
     {
@@ -40,22 +40,30 @@ _EFFORTS = ("low", "high", "max")
 def _reasoning_length(
     client: openai.Client,
     model: str,
+    think_mode: str,
     effort: str | None = None,
     reasoning_effort: str | None = None,
+    thinking: bool = True,
 ) -> int:
     """Run a completion with the given thinking.effort / reasoning_effort
-    (None = omit the field) and return the length of the reasoning_content, 0 if
-    absent."""
-    thinking: dict = {"type": "enabled", "keep": "all"}
-    if effort is not None:
-        thinking["effort"] = effort
-    extra_body: dict = {"thinking": thinking}
-    if reasoning_effort is not None:
-        extra_body["reasoning_effort"] = reasoning_effort
+    (None = omit the field) and return the length of the reasoning_content, return 0
+     when thinking false."""
+
+    if think_mode == "kimi":
+        extra_body = get_thinking_extra_body(thinking, think_mode, effort)
+        # effor for thinking object, reasoning_effort for top level parameter
+        if reasoning_effort:
+            extra_body["reasoning_effort"] = reasoning_effort
+    else:
+        #opensource effort, reasoning_effort map to the same field.
+        extra_body = get_thinking_extra_body(
+            thinking, think_mode, effort or reasoning_effort
+        )
+
     completion = client.chat.completions.create(
         model=model,
         messages=MESSAGES,
-        max_tokens=32 * 1024,
+        **token_kwarg(32 * 1024),
         extra_body=extra_body,
     )
     reasoning = getattr(completion.choices[0].message, "reasoning_content", None)
@@ -65,6 +73,7 @@ def _reasoning_length(
 def _ask_effort(
     client: openai.Client,
     model: str,
+    think_mode: str,
     *,
     effort: str | None = None,
     reasoning_effort: str | None = None,
@@ -75,11 +84,9 @@ def _ask_effort(
     direct (and more reliable than reasoning-length) way to check which effort
     is in effect. We do NOT parse JSON; the caller checks containment with `in`.
     """
-    thinking: dict = {"type": "enabled", "keep": "all"}
-    if effort is not None:
-        thinking["effort"] = effort
-    extra_body: dict = {"thinking": thinking}
-    if reasoning_effort is not None:
+
+    extra_body = get_thinking_extra_body(True, think_mode, effort)
+    if reasoning_effort:
         extra_body["reasoning_effort"] = reasoning_effort
     completion = client.chat.completions.create(
         model=model,
@@ -87,25 +94,26 @@ def _ask_effort(
             {
                 "role": "user",
                 "content": (
-                    "你当前的 thinking_effort 是什么？只输出 effort 的值，"
-                    "例如 low / high / max / unknown，不要输出其他内容。"
+                    "Which thinking_effort is the system invoked with? (low/high/max)"
                 ),
             },
         ],
-        max_tokens=256,
+        **token_kwarg(256),
         extra_body=extra_body,
     )
     return completion.choices[0].message.content or ""
 
 
-def test_basic_enabled_returns_reasoning(client: openai.Client, model: str):
-    """Most basic case: thinking enabled with an explicit effort returns
+def test_basic_enabled_returns_reasoning(
+    client: openai.Client, model: str, think_mode: str
+):
+    """Most basic case: thinking enabled with omitted effort returns
     both reasoning_content and content."""
     completion = client.chat.completions.create(
         model=model,
         messages=MESSAGES,
-        max_tokens=32 * 1024,
-        extra_body={"thinking": {"type": "enabled", "keep": "all", "effort": "high"}},
+        **token_kwarg(32 * 1024),
+        extra_body=get_thinking_extra_body(True, think_mode),
     )
     choice = completion.choices[0]
     assert hasattr(choice.message, "reasoning_content"), (
@@ -114,14 +122,16 @@ def test_basic_enabled_returns_reasoning(client: openai.Client, model: str):
     assert choice.message.content, f"expected content, got: {choice.message}"
 
 
-def test_default_type_is_enabled(client: openai.Client, model: str):
+def test_default_type_is_enabled(client: openai.Client, model: str, think_mode: str):
     """Omitting thinking.type defaults to 'enabled', so reasoning_content is
-    returned."""
+    returned. Open-source mode omits the param entirely (server default)."""
     completion = client.chat.completions.create(
         model=model,
         messages=MESSAGES,
-        max_tokens=32 * 1024,
-        extra_body={"thinking": {"keep": "all"}},
+        **token_kwarg(32 * 1024),
+        extra_body=(
+            {} if think_mode == "opensource" else {"thinking": {"keep": "all"}}
+        ),
     )
     choice = completion.choices[0]
     assert hasattr(choice.message, "reasoning_content"), (
@@ -131,14 +141,16 @@ def test_default_type_is_enabled(client: openai.Client, model: str):
     assert choice.message.content, f"expected content, got: {choice.message}"
 
 
-def test_effort_omitted_returns_reasoning(client: openai.Client, model: str):
+def test_effort_omitted_returns_reasoning(
+    client: openai.Client, model: str, think_mode: str
+):
     """Omitting effort (default = max) with thinking enabled still returns
     reasoning_content."""
     completion = client.chat.completions.create(
         model=model,
         messages=MESSAGES,
-        max_tokens=32 * 1024,
-        extra_body={"thinking": {"type": "enabled", "keep": "all"}},
+        **token_kwarg(32 * 1024),
+        extra_body=get_thinking_extra_body(True, think_mode),
     )
     choice = completion.choices[0]
     assert hasattr(choice.message, "reasoning_content"), (
@@ -146,32 +158,38 @@ def test_effort_omitted_returns_reasoning(client: openai.Client, model: str):
     )
     assert choice.message.content, f"expected content, got: {choice.message}"
 
-    report = _ask_effort(client, model)
+    report = _ask_effort(client, model, think_mode)
     assert "max" in report, f"expected 'max' in effort report, got: {report!r}"
 
 
 @pytest.mark.skip(reason="temporarily skipped: reasoning length is noisy")
 @pytest.mark.flaky(reruns=2, reruns_delay=1)
-def test_effort_reasoning_length_increases(client: openai.Client, model: str):
+def test_effort_reasoning_length_increases(
+    client: openai.Client, model: str, think_mode: str
+):
     """Higher effort should produce more reasoning: low < high < max. Verified
     both by reasoning length and by directly asking the model its effort."""
-    low, high, max_ = (_reasoning_length(client, model, e) for e in _EFFORTS)
+    low, high, max_ = (
+        _reasoning_length(client, model, think_mode, effort=e) for e in _EFFORTS
+    )
     assert low < high < max_, (
         f"expected reasoning length low < high < max, "
         f"got low={low}, high={high}, max={max_}"
     )
-    assert "low" in _ask_effort(client, model, effort="low"), "expected 'low' in effort report"
-    assert "high" in _ask_effort(client, model, effort="high"), "expected 'high' in effort report"
-    assert "max" in _ask_effort(client, model, effort="max"), "expected 'max' in effort report"
+    assert "low" in _ask_effort(client, model, think_mode, effort="low"), "expected 'low' in effort report"
+    assert "high" in _ask_effort(client, model, think_mode, effort="high"), "expected 'high' in effort report"
+    assert "max" in _ask_effort(client, model, think_mode, effort="max"), "expected 'max' in effort report"
 
 
 @pytest.mark.skip(reason="temporarily skipped: reasoning length is noisy")
 @pytest.mark.flaky(reruns=2, reruns_delay=1)
-def test_effort_default_closest_to_max(client: openai.Client, model: str):
+def test_effort_default_closest_to_max(client: openai.Client, model: str, think_mode: str):
     """The default (effort omitted) should behave like effort='max', i.e. its
     reasoning length is closest to that of 'max'."""
-    default = _reasoning_length(client, model)
-    low, high, max_ = (_reasoning_length(client, model, e) for e in _EFFORTS)
+    default = _reasoning_length(client, model, think_mode)
+    low, high, max_ = (
+        _reasoning_length(client, model, think_mode, effort=e) for e in _EFFORTS
+    )
     distances = {
         "low": abs(default - low),
         "high": abs(default - high),
@@ -184,213 +202,62 @@ def test_effort_default_closest_to_max(client: openai.Client, model: str):
         f"default={default}, low={low}, high={high}, max={max_}, distances={distances}"
     )
 
-    report = _ask_effort(client, model)
+    report = _ask_effort(client, model, think_mode)
     assert "max" in report, f"expected 'max' in effort report, got: {report!r}"
 
 
 @pytest.mark.flaky(reruns=5, reruns_delay=1)
-def test_reasoning_effort_ignored_when_effort_present(client: openai.Client, model: str):
+def test_reasoning_effort_ignored_when_effort_present(
+    client: openai.Client, model: str, think_mode: str, require_platform_server
+):
     """When thinking.effort is present, reasoning_effort is ignored:
     thinking.effort=low + reasoning_effort=max should behave like effort=low,
     not effort=max. Verified both by reasoning length and by directly asking the
-    model its effective effort."""
-    low_only = _reasoning_length(client, model, effort="low")
-    max_only = _reasoning_length(client, model, effort="max")
-    with_ignored = _reasoning_length(client, model, effort="low", reasoning_effort="max")
+    model its effective effort. (Kimi-platform precedence; open-source servers
+    only have reasoning_effort, so the conflict cannot arise.)"""
+    low_only = _reasoning_length(client, model, think_mode, effort="low")
+    max_only = _reasoning_length(client, model, think_mode, effort="max")
+    with_ignored = _reasoning_length(
+        client, model, think_mode, effort="low", reasoning_effort="max"
+    )
 
     assert with_ignored < max_only, (
         f"reasoning_effort should be ignored when thinking.effort present: "
         f"with_ignored={with_ignored}, max_only={max_only}"
     )
 
-    report = _ask_effort(client, model, effort="low", reasoning_effort="max")
+    report = _ask_effort(client, model, think_mode, effort="low", reasoning_effort="max")
     assert "low" in report, f"expected 'low' in effort report, got: {report!r}"
 
 
 @pytest.mark.flaky(reruns=5, reruns_delay=1)
-def test_reasoning_effort_effective_when_effort_absent(client: openai.Client, model: str):
+def test_reasoning_effort_effective_when_effort_absent(
+    client: openai.Client, model: str, think_mode: str
+):
     """When thinking.effort is absent, reasoning_effort takes effect:
     reasoning_effort=max should produce more reasoning than
     reasoning_effort=low. (Verified by reasoning length only, since the model
     does not report reasoning_effort in the system prompt.)"""
-    low_reasoning = _reasoning_length(client, model, reasoning_effort="low")
-    max_reasoning = _reasoning_length(client, model, reasoning_effort="max")
+    low_reasoning = _reasoning_length(client, model, think_mode, reasoning_effort="low")
+    max_reasoning = _reasoning_length(client, model, think_mode, reasoning_effort="max")
     assert max_reasoning > low_reasoning, (
         f"reasoning_effort should take effect when thinking.effort absent: "
         f"max_reasoning={max_reasoning}, low_reasoning={low_reasoning}"
     )
 
-    report = _ask_effort(client, model, reasoning_effort="max")
+    report = _ask_effort(client, model, think_mode, reasoning_effort="max")
     assert "max" in report, f"expected 'max' in effort report, got: {report!r}"
 
-@pytest.mark.skip("skip thinking disabled, tc assert not right")
-def test_effort_with_disabled_returns_no_reasoning(client: openai.Client, model: str):
-    """effort must not enable reasoning when type='disabled'."""
-    completion = client.chat.completions.create(
-        model=model,
-        messages=MESSAGES,
-        max_tokens=32 * 1024,
-        extra_body={"thinking": {"type": "disabled", "keep": "all", "effort": "high"}},
-    )
-    choice = completion.choices[0]
-    reasoning = getattr(choice.message, "reasoning_content", None)
-    assert not reasoning, (
-        f"thinking disabled should yield no reasoning_content, got: {reasoning!r}"
-    )
-    assert choice.message.content, f"expected content, got: {choice.message}"
 
-@pytest.mark.skip("skip thinking disabled, tc assert not right")
-def test_disabled_ignores_keep(client: openai.Client, model: str):
-    """When type='disabled', keep is ignored (any value is accepted and no
-    reasoning is returned)."""
-    completion = client.chat.completions.create(
-        model=model,
-        messages=MESSAGES,
-        max_tokens=32 * 1024,
-        extra_body={"thinking": {"type": "disabled", "keep": "none", "effort": "high"}},
-    )
-    choice = completion.choices[0]
-    reasoning = getattr(choice.message, "reasoning_content", None)
-    assert not reasoning, (
-        f"thinking disabled should ignore keep and yield no reasoning_content, "
-        f"got: {reasoning!r}"
-    )
-    assert choice.message.content, f"expected content, got: {choice.message}"
-
-
-@pytest.mark.skip(
-    reason="online can use preset or normalization to force keep='all'; skip the keep != 'all' rejection check"
-)
-def test_keep_not_all_rejected(client: openai.Client, model: str):
-    """keep is fixed to 'all' when type='enabled'; any other value must be
-    rejected."""
-    with pytest.raises(openai.BadRequestError):
-        client.chat.completions.create(
-            model=model,
-            messages=MESSAGES,
-            max_tokens=32 * 1024,
-            extra_body={"thinking": {"type": "enabled", "keep": "none", "effort": "high"}},
-        )
-
-
-# keep='all' behavior tests. `keep` (keep_reasoning_content) controls how much
-# of the earlier turns' reasoning_content is kept in the prompt for the next
-# turn. The 4 modes are: all / none / after_last_user /
-# after_last_non_tool_call_assistant (the default). Only 'all' keeps the
-# reasoning_content of turns that come BEFORE the last user message; the other
-# three strip it. Online only accepts keep='all' (others are 400), so we cannot
-# compare against them directly; instead we verify keep='all' actually keeps
-# the early-turn reasoning (Test A semantically, Test B deterministically).
-#
-# The fabricated conversation plants three distinct 4-digit numbers ONLY in the
-# reasoning_content of three earlier assistant turns (the assistant `content`
-# never contains them). The final user turn asks the model to read them back
-# from its reasoning_content. All three reasoning blocks sit before the last
-# user message, so only keep='all' preserves them.
-_KEEP_MESSAGES = [
-    {
-        "role": "user",
-        "content": (
-            "接下来我会把一些重要信息只放在你的 reasoning_content（思考过程）里，"
-            "你的 content 只需要回复\"收到\"两个字，不要复述任何信息。"
-            "直到我最后主动问你这些信息是什么时，你再回答。明白了吗？"
-        ),
-    },
-    {
-        "role": "assistant",
-        "content": "收到",
-        "reasoning_content": "用户的要求是：重要信息只放在 reasoning_content 里，content 只回复\"收到\"，等用户最后主动问时再回答。我记住了这个规则。",
-    },
-    {"role": "user", "content": "我已经把第一个信息写进你的 reasoning content 了。"},
-    {
-        "role": "assistant",
-        "content": "收到",
-        "reasoning_content": "用户说第一个信息已经写进来了。这里的第一个4位数字是 7382。我先把它记在心里，但 content 只回复收到。",
-    },
-    {"role": "user", "content": "我已经把第二个信息写进你的 reasoning content 了。"},
-    {
-        "role": "assistant",
-        "content": "收到",
-        "reasoning_content": "用户说第二个信息已经写进来了。这里的第二个4位数字是 4915。我记住它，content 只回复收到。",
-    },
-    {"role": "user", "content": "我已经把第三个信息写进你的 reasoning content 了。"},
-    {
-        "role": "assistant",
-        "content": "收到",
-        "reasoning_content": "用户说第三个信息已经写进来了。这里的第三个4位数字是 2067。我记住它，content 只回复收到。",
-    },
-    {
-        "role": "user",
-        "content": (
-            "现在请从你的 reasoning content（思考过程）里找出刚才那3个4位数字，"
-            "按先后顺序告诉我。只回答这3个数字，用空格隔开。"
-        ),
-    },
-]
-
-_KEEP_NUMBERS = ("7382", "4915", "2067")
-
-
-def _strip_reasoning(messages: list[dict]) -> list[dict]:
-    """Return a copy of messages with the reasoning_content field removed."""
-    return [{k: v for k, v in m.items() if k != "reasoning_content"} for m in messages]
-
-@pytest.mark.skip("skip, not pass")
-@pytest.mark.flaky(reruns=3, reruns_delay=1)
-def test_keep_all_preserves_history_reasoning(client: openai.Client, model: str):
-    """Test A (semantic): default keep='all' must keep the reasoning_content of earlier
-    turns (those before the last user message), so the model can recall the
-    4-digit numbers that only ever appeared in reasoning_content. If keep
-    behaved as 'none' / 'after_last_user' /
-    'after_last_non_tool_call_assistant', those early-turn reasoning blocks
-    would be stripped from the prompt and the model could not recall them."""
-    completion = client.chat.completions.create(
-        model=model,
-        messages=_KEEP_MESSAGES,
-        max_tokens=512,
-        extra_body={"thinking": {"type": "enabled"}},
-    )
-    content = completion.choices[0].message.content or ""
-    for number in _KEEP_NUMBERS:
-        assert number in content, (
-            f"keep='all' should preserve earlier reasoning_content so the model "
-            f"recalls {number}; got content={content!r}"
-        )
-
-@pytest.mark.skip("skip, tc not pass")
-def test_keep_all_prompt_tokens_include_reasoning(client: openai.Client, model: str):
-    """Test B (deterministic): with default keep='all', the earlier turns'
-    reasoning_content is part of the prompt, so the prompt token count must be
-    strictly higher than the same conversation with reasoning_content removed.
-    If keep stripped the reasoning (behaving as 'none'), the two counts would
-    be equal."""
-    with_rc = client.chat.completions.create(
-        model=model,
-        messages=_KEEP_MESSAGES,
-        max_tokens=1,
-        extra_body={"thinking": {"type": "enabled"}},
-    )
-    without_rc = client.chat.completions.create(
-        model=model,
-        messages=_strip_reasoning(_KEEP_MESSAGES),
-        max_tokens=1,
-        extra_body={"thinking": {"type": "enabled"}},
-    )
-    tokens_with = with_rc.usage.prompt_tokens
-    tokens_without = without_rc.usage.prompt_tokens
-    assert tokens_with > tokens_without, (
-        f"keep='all' should include earlier reasoning_content in the prompt: "
-        f"prompt_tokens with reasoning={tokens_with}, without={tokens_without}"
-    )
-
-
-def test_effort_stream_returns_reasoning_chunks(client: openai.Client, model: str):
+def test_effort_stream_returns_reasoning_chunks(
+    client: openai.Client, model: str, think_mode: str
+):
     stream = client.chat.completions.create(
         model=model,
         messages=MESSAGES,
-        max_tokens=32 * 1024,
+        **token_kwarg(32 * 1024),
         stream=True,
-        extra_body={"thinking": {"type": "enabled", "keep": "all", "effort": "high"}},
+        extra_body=get_thinking_extra_body(True, think_mode, "high"),
     )
     reasoning_chunks = []
     content_chunks = []

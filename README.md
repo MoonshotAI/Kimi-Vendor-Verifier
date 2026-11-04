@@ -13,7 +13,7 @@ Kimi Vendor Verifier (KVV) verifies whether a vendor deployment meets Kimi model
 | Provider | OCRBench | MMMU Pro Vision | BEAM (1M) | DeepSWE | ToolCall bench |
 |----------|----------|-----------------|-----------|---------|----------------|
 | Moonshot | 0.872 | 0.841 | 0.3917 | 0.755 | 0.972 |
-| Basten | 0.881 | 0.847 | 0.3897 | 0.746 | 0.980 |
+| Baseten | 0.881 | 0.847 | 0.3897 | 0.746 | 0.980 |
 | DigitalOcean | 0.880 | 0.846 | TBD | TBD | 0.980 |
 | Fireworks | 0.866 | 0.837 | 0.3888 | 0.754 | 0.986 |
 | Inferact | 0.884 | TBD | TBD | TBD | 0.972 |

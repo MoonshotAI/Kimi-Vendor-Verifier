@@ -19,7 +19,7 @@ Kimi Vendor Verifier (KVV) verifies whether a vendor deployment meets Kimi model
 | DigitalOcean | 0.880 | 0.846 | 0.3934 | TBD | 0.980 |
 | Fireworks | 0.866 | 0.837 | 0.3888 | 0.754 | 0.986 |
 | Inferact (vLLM ref.) | 0.884 | 0.840 | 0.3913 | 0.758 | 0.972 |
-| Microsoft | 0.877 | 0.843 | 0.3835 | 0.755 | 1.0 |
+| Microsoft Foundry | 0.877 | 0.843 | 0.3835 | 0.755 | 1.0 |
 | Modal | 0.876 | 0.841 | 0.3883 | 0.764 | 1.0 |
 | Nebius | 0.869 | 0.842 | 0.3921 | 0.742 | 0.973 |
 | Together | 0.886 | 0.842 | 0.3842 | 0.735 | 0.998 |

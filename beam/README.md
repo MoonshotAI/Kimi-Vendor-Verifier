@@ -79,7 +79,7 @@ python beam_generate.py \
 | `--max-context-tokens` | 1048576 | content budget = max-context − max-tokens − 5000 |
 | `--plain-text` | off | flatten history and probing question into one plain-text user message |
 | `--concurrency` | 16 | parallel requests |
-| `--max-retries` | 8 | per-question retries before recording empty answer |
+| `--max-retries` | 8 | per-question retries before recording a failed request |
 | `--limit` | 0 (all) | only run the first N questions (smoke test) |
 | `--dry-run` | off | build prompts without sending requests |
 
@@ -107,7 +107,10 @@ Notes:
 - `run_eval.sh beam_generate` pass `--plain-text` by default; set 
   `BEAM_PLAIN_TEXT=false` (shell env) to run them in multi-turn mode.
 - A question that fails all retries is written with an empty response and an
-  `error` field (it scores 0) instead of aborting the run.
+  `error` field instead of aborting the run. Such a row is a failed request,
+  not a model answer: restarting the script sends it again (the new row is
+  appended and supersedes the old one), and the script ends by printing how
+  many requests failed and how many responses are empty.
 
 ## 2. Judge answers
 
@@ -144,6 +147,7 @@ python beam_judge.py \
 | `--judge-max-tokens` | 16384 | judge max output tokens |
 | `--judge-temperature` | 0.3 | judge temperature |
 | `--concurrency` | 32 | parallel judge calls |
+| `--fail-on-errors` | off | stop when an answer's request failed (`error` set) instead of scoring it 0 with a warning |
 
 > **Note on `--judge-temperature`**: Different judge models may enforce different allowed temperature values. For example, `kimi-k2.6` requires `temperature=1.0`; in that case run with `--judge-temperature 1.0`.
 
@@ -158,6 +162,15 @@ python beam_judge.py \
 - Empty responses score 0 without calling the judge (except `abstention`,
   where an empty/refusal response may be correct).
 - Unparseable or failed judge responses score 0 (they never abort the run).
+  A question with a failed or empty judge reply is recorded with
+  `judge_errors` and judged again on the next run.
+- Answers whose request failed (`error` set) score 0 without calling the
+  judge, and the run prints a warning with their count, so that an endpoint
+  outage cannot pass for a low score unnoticed. Re-run `beam_generate.py` to
+  retry them, then judge again. Pass `--fail-on-errors` to stop instead.
+- The summary ends with the number of failed requests, empty responses and
+  questions affected by judge failures. Report a score only when you can
+  account for these.
 - The final report is the overall mean plus per-ability means, matching the
   official per-ability breakdown.
 
@@ -167,4 +180,6 @@ python beam_judge.py \
 `{chat_id, question_type, question_index, question, gold_answer, rubric, response, finish_reason, completion_id, prompt_tokens, completion_tokens, error}`
 
 `scores.jsonl` — one line per question:
-`{chat_id, question_type, question_index, score}`
+`{chat_id, question_type, question_index, score, completion_id, judge_errors}`
+(`completion_id` is the judged answer's; a question whose answer was
+regenerated is judged again)

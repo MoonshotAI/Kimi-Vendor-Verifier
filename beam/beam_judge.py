@@ -11,7 +11,12 @@ Scoring semantics replicate the official BEAM evaluation:
   - event_ordering is strict: 1.0 only if all events present in perfect order
   - empty responses score 0 (except abstention, where empty may be correct)
 
-Resumable: questions already present in the scores file are skipped.
+Resumable: questions already present in the scores file are skipped, unless
+the answer has changed since or a judge call failed for that question.
+
+Answers with an `error` (the request failed in beam_generate.py) are not model
+answers. They score 0 without a judge call and the run prints a warning with
+their count; pass --fail-on-errors to stop instead.
 
 Example:
     export JUDGE_API_KEY=sk-...
@@ -274,21 +279,22 @@ async def call_judge(client: AsyncOpenAI, args, prompt: str) -> str:
 
 
 async def judge_rubric_item(client, args, question: str, rubric_item: str,
-                            llm_response: str) -> int:
+                            llm_response: str) -> int | None:
+    """Score one rubric item; None when the judge failed or returned nothing."""
     prompt = JUDGE_PROMPT_TEMPLATE.format(
         question=question, rubric_item=rubric_item, llm_response=llm_response,
     )
     try:
         judge_response = await call_judge(client, args, prompt)
     except Exception:
-        return 0
+        return None
     if not judge_response:
-        return 0
+        return None
     return _parse_judge_score(judge_response)
 
 
 async def judge_event_ordering(client, args, question: str, rubric_items: list,
-                               llm_response: str) -> float:
+                               llm_response: str) -> float | None:
     reference_order = "\n".join(f"{i + 1}. {item}" for i, item in enumerate(rubric_items))
     prompt = EVENT_ORDERING_JUDGE_TEMPLATE.format(
         question=question, reference_order=reference_order, llm_response=llm_response,
@@ -296,21 +302,25 @@ async def judge_event_ordering(client, args, question: str, rubric_items: list,
     try:
         judge_response = await call_judge(client, args, prompt)
     except Exception:
-        return 0.0
+        return None
     if not judge_response:
-        return 0.0
+        return None
     score = _parse_float_score(judge_response)
     return 1.0 if score >= 1.0 else 0.0
 
 
-async def score_row(client, args, row: dict) -> float:
+async def score_row(client, args, row: dict) -> tuple[float, int]:
+    """Return (score, number of judge calls that failed and were scored 0)."""
+    if row.get("error"):
+        return 0.0, 0
+
     prediction = row.get("response") or ""
     question_type = row["question_type"]
     question = row["question"]
 
     # Empty-response guard: non-abstention empty responses are always wrong.
     if not prediction.strip() and question_type != "abstention":
-        return 0.0
+        return 0.0, 0
 
     rubric_items = row.get("rubric") or []
     if isinstance(rubric_items, str):
@@ -322,13 +332,15 @@ async def score_row(client, args, row: dict) -> float:
         rubric_items = ["The response should be relevant and correct."]
 
     if question_type == "event_ordering":
-        return await judge_event_ordering(client, args, question, rubric_items, prediction)
+        score = await judge_event_ordering(client, args, question, rubric_items, prediction)
+        return (0.0, 1) if score is None else (score, 0)
 
     item_scores = await asyncio.gather(*(
         judge_rubric_item(client, args, question, item, prediction)
         for item in rubric_items
     ))
-    return sum(item_scores) / len(item_scores)
+    judge_errors = sum(1 for s in item_scores if s is None)
+    return sum(s or 0 for s in item_scores) / len(item_scores), judge_errors
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +351,21 @@ def row_key(row: dict) -> str:
     return f"{row['chat_id']}|{row['question_type']}|{row['question_index']}"
 
 
+def load_answers(path: str) -> list:
+    """Load answers, keeping the last row of each question (resume appends)."""
+    rows = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            rows[row_key(row)] = row
+    return list(rows.values())
+
+
 def load_scores(path: str) -> dict:
+    """Load score records by question key; the last record of a key wins."""
     scores = {}
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
@@ -348,18 +374,28 @@ def load_scores(path: str) -> dict:
                     r = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                scores[f"{r['chat_id']}|{r['question_type']}|{r['question_index']}"] = r["score"]
+                scores[row_key(r)] = r
     return scores
+
+
+def needs_judging(row: dict, record: dict | None) -> bool:
+    if record is None or record.get("judge_errors"):
+        return True
+    # Records written before completion_id was stored are trusted as is.
+    return "completion_id" in record and record["completion_id"] != row.get("completion_id")
 
 
 def print_summary(rows: list, scores: dict) -> None:
     per_type = {qt: [] for qt in QUESTION_TYPES}
     all_scores = []
+    judge_errors = 0
     for row in rows:
-        s = scores.get(row_key(row))
-        if s is None:
+        record = scores.get(row_key(row))
+        if record is None:
             continue
+        s = record["score"]
         all_scores.append(s)
+        judge_errors += 1 if record.get("judge_errors") else 0
         if row["question_type"] in per_type:
             per_type[row["question_type"]].append(s)
 
@@ -371,21 +407,35 @@ def print_summary(rows: list, scores: dict) -> None:
         if vals:
             print(f"  {qt}: {sum(vals) / len(vals):.4f} (n={len(vals)})")
 
+    failed = sum(1 for r in rows if r.get("error"))
+    empty = sum(1 for r in rows
+                if not r.get("error") and not (r.get("response") or "").strip())
+    print(f"without a model answer: {failed} failed requests (scored 0), "
+          f"{empty} empty responses (scored 0, except abstention)")
+    if failed:
+        print(f"WARNING: the overall score counts {failed} failed requests as wrong "
+              "answers; it is not a model score until they are retried.")
+    print(f"scored 0 for at least one criterion because the judge failed: "
+          f"{judge_errors} questions (re-run to retry them)")
+
 
 async def run(args) -> None:
-    rows = []
-    with open(args.answers, "r", encoding="utf-8") as f:
-        for line in f:
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+    rows = load_answers(args.answers)
     print(f"loaded {len(rows)} answers from {args.answers}", flush=True)
 
+    failed = sum(1 for r in rows if r.get("error"))
+    if failed:
+        message = (f"{failed} of {len(rows)} answers are failed requests (`error` is "
+                   "set), not model answers. Re-run beam_generate.py to retry them.")
+        if args.fail_on_errors:
+            sys.exit(message)
+        print(f"WARNING: {message} They score 0 here.", flush=True)
+
     scores = load_scores(args.output)
+    todo = [r for r in rows if needs_judging(r, scores.get(row_key(r)))]
     if scores:
-        print(f"reused {len(scores)} existing scores from {args.output}", flush=True)
-    todo = [r for r in rows if row_key(r) not in scores]
+        print(f"reused {len(rows) - len(todo)} existing scores from {args.output}",
+              flush=True)
     if args.limit:
         todo = todo[: args.limit]
     print(f"to judge: {len(todo)}", flush=True)
@@ -403,15 +453,17 @@ async def run(args) -> None:
 
         async def worker(row):
             async with sem:
-                score = await score_row(client, args, row)
-            key = row_key(row)
-            scores[key] = score
-            out.write(json.dumps({
+                score, judge_errors = await score_row(client, args, row)
+            record = {
                 "chat_id": row["chat_id"],
                 "question_type": row["question_type"],
                 "question_index": row["question_index"],
                 "score": score,
-            }, ensure_ascii=False) + "\n")
+                "completion_id": row.get("completion_id"),
+                "judge_errors": judge_errors,
+            }
+            scores[row_key(row)] = record
+            out.write(json.dumps(record, ensure_ascii=False) + "\n")
             out.flush()
             counter["n"] += 1
             n = counter["n"]
@@ -442,6 +494,9 @@ def main() -> None:
     parser.add_argument("--max-retries", type=int, default=8)
     parser.add_argument("--timeout", type=float, default=600)
     parser.add_argument("--limit", type=int, default=0, help="only judge first N rows")
+    parser.add_argument("--fail-on-errors", action="store_true",
+                        help="stop when an answer's request failed (`error` set) "
+                             "instead of scoring it 0 with a warning")
     args = parser.parse_args()
 
     if not args.judge_api_key:

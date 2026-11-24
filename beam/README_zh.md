@@ -69,7 +69,7 @@ python beam_generate.py \
 | `--max-context-tokens` | 1048576 | 内容预算 = max-context - max-tokens - 5000 |
 | `--plain-text` | 关闭 | 将对话历史和 probing question 合并为一条纯文本 user message |
 | `--concurrency` | 16 | 并发请求数 |
-| `--max-retries` | 8 | 单个问题在记录空答案前的最大重试次数 |
+| `--max-retries` | 8 | 单个问题在记录请求失败前的最大重试次数 |
 | `--limit` | 0（全部） | 只运行前 N 个问题，用于 smoke test |
 | `--dry-run` | 关闭 | 只构造 prompts 并打印统计信息，不发送请求 |
 
@@ -81,7 +81,7 @@ python beam_generate.py \
 - 默认使用随仓库提供的 Kimi-K2.6 tokenizer（`tokenizer/`，从官方模型发布版本中提取）；也可以通过 `--tokenizer` 指向其他 HF id 或本地路径，以匹配不同模型系列。
 - 脚本重启时会跳过输出文件中已经存在的问题。多轮与纯文本模式必须使用不同的输出文件，因为断点续跑的问题标识不包含 Prompt 模式。
 - CI 的 `beam_generate` job 和 `run_eval.sh beam_generate` 默认带 `--plain-text` 运行；设置 `BEAM_PLAIN_TEXT=false`（CI/CD 变量或 shell 环境变量）可切回多轮模式。
-- 如果某个问题所有重试都失败，脚本会写入一个空 response 和 `error` 字段，而不是中止整个运行；该问题会得 0 分。
+- 如果某个问题所有重试都失败，脚本会写入一个空 response 和 `error` 字段，而不是中止整个运行。这样的行表示请求失败，而不是模型的回答：重启脚本时会重新发送该问题（新行追加在文件末尾并取代旧行），脚本结束时会打印请求失败数和空回答数。
 
 ## 2. 判分答案
 
@@ -118,6 +118,7 @@ python beam_judge.py \
 | `--judge-max-tokens` | 16384 | judge 模型最大输出 token 数 |
 | `--judge-temperature` | 0.3 | judge 模型 temperature |
 | `--concurrency` | 32 | 并发 judge 调用数 |
+| `--fail-on-errors` | 关闭 | 存在请求失败（带 `error`）的答案时停止判分，而不是记 0 分并给出警告 |
 
 > **关于 `--judge-temperature` 的说明**：不同 judge 模型对允许的温度值限制可能不同。例如 `kimi-k2.6` 要求 `temperature=1.0`，此时需要额外传入 `--judge-temperature 1.0`。
 
@@ -126,7 +127,9 @@ python beam_judge.py \
 - 每个问题都带有 rubric（criteria 列表）。judge 会对每条 criterion 按 3 档分数打分（0.0 / 0.5 / 1.0）；分数会用 `int()` 截断（0.5 -> 0），再对所有 criteria 求平均。这复刻了官方实现。
 - `event_ordering` 采用严格评分：只有所有参考事件都出现且顺序完全正确时才得 1.0，否则得 0.0。
 - 空回答直接得 0，不调用 judge（`abstention` 除外，因为空回答或拒答可能是正确的）。
-- 无法解析或调用失败的 judge response 记 0 分，永远不会中止整轮运行。
+- 无法解析或调用失败的 judge response 记 0 分，永远不会中止整轮运行。judge 调用失败或返回空内容的问题会记录 `judge_errors`，下次运行时重新判分。
+- 请求失败（带 `error`）的答案不调用 judge，直接记 0 分，并打印带有数量的警告，避免把 endpoint 故障悄悄当成低分。请重新运行 `beam_generate.py` 重试这些问题，然后再次判分。传入 `--fail-on-errors` 则改为停止判分。
+- summary 末尾会给出请求失败数、空回答数以及受 judge 失败影响的问题数。只有在能解释这些数字时才应报告分数。
 - 最终报告包含 overall mean 和各能力维度 mean，与官方 per-ability breakdown 对齐。
 
 ## 输出格式
@@ -135,4 +138,5 @@ python beam_judge.py \
 `{chat_id, question_type, question_index, question, gold_answer, rubric, response, finish_reason, completion_id, prompt_tokens, completion_tokens, error}`
 
 `scores.jsonl`：每个问题一行：
-`{chat_id, question_type, question_index, score}`
+`{chat_id, question_type, question_index, score, completion_id, judge_errors}`
+（`completion_id` 为被判分答案的 id；答案重新生成后该问题会重新判分）

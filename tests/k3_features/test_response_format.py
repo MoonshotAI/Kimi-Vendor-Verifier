@@ -14,10 +14,11 @@ MFJS (Moonshot Flavored JSON Schema) or the server returns an error / warning;
 when false, only valid JSON is guaranteed and the internal structure is not
 enforced.
 
-These tests are written against the online chat-completions endpoint. Positive
-cases use the standard openai SDK `client` fixture; validation / error cases use
-the raw httpx `hclient` fixture so that malformed requests reach the server
-unchanged (the SDK could otherwise reject or coerce them client-side).
+These tests are written against the online chat-completions endpoint. Most
+positive cases use the standard openai SDK `client` fixture. The raw httpx
+`hclient` fixture is used for exact HTTP status assertions and validation / error
+cases, so malformed requests reach the server unchanged (the SDK could otherwise
+reject or coerce them client-side).
 """
 
 import json
@@ -142,6 +143,49 @@ def test_json_schema_non_strict(client: openai.Client, model: str):
 
     parsed = json.loads(content)  # only guarantees valid JSON
     assert isinstance(parsed, dict), f"expected a JSON object, got: {parsed!r}"
+
+
+def test_json_schema_unique_items_accepted(hclient: httpx.Client, model: str):
+    """Walle lite accepts uniqueItems without requiring output uniqueness."""
+    response = hclient.post(
+        "/chat/completions",
+        json={
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        "Return a JSON object with labels set to an empty array. "
+                        "Output JSON only."
+                    ),
+                }
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "url_clean_contract_annotation",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "labels": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": ["boilerplate", "content", "gamble"],
+                                },
+                                "uniqueItems": True,
+                            }
+                        },
+                    },
+                },
+            },
+            "max_tokens": 256,
+        },
+    )
+    assert response.status_code == 200, (
+        f"uniqueItems schema rejected: {response.status_code}: {response.text}"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,8 @@
 Sends each probing question together with its full conversation history to an
 OpenAI-compatible chat-completions endpoint and writes one JSONL line per
 question. Resumable: already-answered (chat_id, question_type, question_index)
-tuples in the output file are skipped on restart.
+tuples in the output file are skipped on restart; questions whose last row
+carries an `error` (all retries failed) are sent again.
 
 Paper: https://arxiv.org/abs/2510.27246
 Repo:  https://github.com/mohammadtavakoli78/BEAM
@@ -167,7 +168,12 @@ def load_done_keys(output_path: str) -> set:
                     row = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                done.add(f"{row['chat_id']}|{row['question_type']}|{row['question_index']}")
+                key = f"{row['chat_id']}|{row['question_type']}|{row['question_index']}"
+                # A row with an error is a failed request, not an answer: retry it.
+                if row.get("error"):
+                    done.discard(key)
+                else:
+                    done.add(key)
     return done
 
 
@@ -219,7 +225,8 @@ async def generate_one(client, doc: dict, args, extra_body: dict) -> dict:
                   f"retry in {wait}s", flush=True)
             await asyncio.sleep(wait)
 
-    # Give up: record an empty answer (scores 0) instead of aborting the run.
+    # Give up: record the failure instead of aborting the run. The row is
+    # retried on the next start; beam_judge.py scores it 0 and warns.
     row["error"] = repr(last_err)
     return row
 
@@ -260,7 +267,7 @@ async def run(args) -> None:
     sem = asyncio.Semaphore(args.concurrency)
     out = open(args.output, "a", encoding="utf-8")
     t0 = time.time()
-    counter = {"n": 0}
+    counter = {"n": 0, "errors": 0, "empty": 0}
 
     async def worker(doc):
         async with sem:
@@ -268,6 +275,10 @@ async def run(args) -> None:
         out.write(json.dumps(row, ensure_ascii=False) + "\n")
         out.flush()
         counter["n"] += 1
+        if row["error"]:
+            counter["errors"] += 1
+        elif not row["response"].strip():
+            counter["empty"] += 1
         n = counter["n"]
         if n % 5 == 0 or n == len(todo):
             rate = n / (time.time() - t0) * 60
@@ -276,6 +287,11 @@ async def run(args) -> None:
     await asyncio.gather(*(worker(d) for d in todo))
     out.close()
     print(f"done in {(time.time() - t0) / 60:.1f} min -> {args.output}", flush=True)
+    print(f"failed requests: {counter['errors']}, empty responses: {counter['empty']} "
+          f"(of {len(todo)})", flush=True)
+    if counter["errors"]:
+        print("WARNING: failed requests are not answers; re-run this command to "
+              "retry them before judging.", flush=True)
 
 
 def main() -> None:
